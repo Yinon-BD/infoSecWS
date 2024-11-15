@@ -19,11 +19,11 @@ static unsigned int packet_drop(void *priv, struct sk_buff *skb, const struct nf
 	}
 
 	if(state->hook == NF_INET_LOCAL_IN || state->hook == NF_INET_LOCAL_OUT){ /*should always get inside the if statement*/
-		printk(KERN_INFO "***Packet Dropped***\n");
+		printk(KERN_INFO "*** Packet Dropped ***\n");
 		return NF_DROP;
 	}
 
-	printk(KERN_INFO "***Packet Accepted***\n");
+	printk(KERN_INFO "*** Packet Accepted ***\n");
 	return NF_ACCEPT;
 }
 
@@ -32,7 +32,7 @@ static unsigned int packet_accept(void *priv, struct sk_buff *skb, const struct 
 	if(!skb){
 		return NF_ACCEPT;
 	}
-	printk(KERN_INFO "***Packet Accepted***\n");
+	printk(KERN_INFO "*** Packet Accepted ***\n");
 	return NF_ACCEPT;
 }
 
