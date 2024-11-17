@@ -1,11 +1,11 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <fcntk.h>
+#include <fcntl.h>
 #include <unistd.h>
 #include <string.h>
 
-#define ACC_ATT "pathToBeSet"
-#define DROP_ATT "secondPathToBeSet"
+#define ACC_ATT "/sys/class/PacketCounterClass/PacketCounterClass_PacketCounterDevice/acc_attr"
+#define DROP_ATT "/sys/class/PacketCounterClass/PacketCounterClass_PacketCounterDevice/drop_attr"
 
 unsigned int acc_counter;
 unsigned int drop_counter;
@@ -61,7 +61,7 @@ void print_summary() {
 
 int reset_counters() {
 
-	const char* resetValue = "1\n"
+	const char* resetValue = "1\n";
 
 	fd1 = open(ACC_ATT, O_RDWR);
 
@@ -96,7 +96,7 @@ int reset_counters() {
 	return 0;
 }
 
-int main(int argc char **argv) {
+int main(int argc, char **argv) {
 
 	if(argc > 2) {
 		perror("Error: More than 1 argument have been passed.\n");
@@ -115,6 +115,7 @@ int main(int argc char **argv) {
 		if(reset_counters() == -1){
 			perror("An Error has occured.\n");
 			exit(1);
+		}
 	}
 
 	return 0;
