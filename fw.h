@@ -82,6 +82,12 @@ typedef struct {
 	__u8	action;   			// valid values: NF_ACCEPT, NF_DROP
 } rule_t;
 
+// struct that holds the rule table
+typedef struct {
+	rule_t rules[MAX_RULES];
+	__u8 size; // number of active rules in the table
+} rule_table_t;
+
 // logging
 typedef struct {
 	unsigned long  	timestamp;     	// time of creation/update
