@@ -1,16 +1,18 @@
 #include "PacketFilter.h"
+#include "LogDevice.h"
 
 unsigned int filter(void *priv, struct sk_buff *skb, const struct nf_hook_state *state){
 	struct iphdr *ip_header;
 	struct tcphdr *tcp_header;
 	struct udphdr *udp_header;
+	log_row_t log_row;
 
 	direction_t packet_direction;
 	__be32	packet_src_ip;
 	__be32	packet_dst_ip;
-	__be16	packet_src_port; 			// number of port or 0 for any or port 1023 for any port number > 1023  
-	__be16	packet_dst_port; 			// number of port or 0 for any or port 1023 for any port number > 1023 
-	__u8	packet_protocol; 			// values from: prot_t
+	__be16	packet_src_port; 			  
+	__be16	packet_dst_port; 			 
+	__u8	packet_protocol; 			
 	ack_t	packet_ack;
 
 	if(!skb){
@@ -23,12 +25,13 @@ unsigned int filter(void *priv, struct sk_buff *skb, const struct nf_hook_state 
 	packet_dst_ip = ip_header->daddr;
 	packet_protocol = ip_header->protocol;
 	set_packet_src_and_dst_ports(skb, &packet_src_port, &packet_dst_port);
+	set_log_address_and_protocol(&log_row, packet_src_ip, packet_dst_ip, packet_src_port, packet_dst_port, packet_protocol);
 	if(packet_protocol == PROT_TCP){
 		tcp_header = tcp_hdr(skb);
 		packet_ack = tcp_header->ack ? ACK_YES : ACK_NO;
 	}
 
-	if(ip_header->saddr == 0x7F000001 && ip_header->daddr == 0x7F000001){ /*loopback packet*/
+	if(((ip_header->saddr) & 0xFF000000) == 0x7F000000 && ((ip_header->daddr) & 0xFF000000) == 0x7F000001){ /*loopback packet*/
 		return NF_ACCEPT;
 	}
 
@@ -40,14 +43,14 @@ unsigned int filter(void *priv, struct sk_buff *skb, const struct nf_hook_state 
 		tcp_header = tcp_hdr(skb);
 		if(!tcp_header) return NF_ACCEPT;
 		if(tcp_header->urg && tcp_header->fin && tcp_header->psh){ /*XMAS packet*/
-			log_it(REASON_XMAS_PACKET, NF_DROP);
+			log_it(&log_row, REASON_XMAS_PACKET, NF_DROP);
 			return NF_DROP;
 		}
 		
 	}
 
 	if(is_valid_rule_table() == 0 || get_rule_table_size() == 0){
-		log_it(REASON_FW_INACTIVE, NF_ACCEPT);
+		log_it(&log_row, REASON_FW_INACTIVE, NF_ACCEPT);
 		return NF_ACCEPT;
 	}
 
@@ -55,12 +58,12 @@ unsigned int filter(void *priv, struct sk_buff *skb, const struct nf_hook_state 
 	int i;
 	for(i = 0; i < get_rule_table_size(); i++){
 		if(check_for_match(rule_table + i, packet_direction, packet_src_ip, packet_dst_ip, packet_src_port, packet_dst_port, packet_protocol, packet_ack)){
-			log_it(i, (rule_table + i)->action);
+			log_it(&log_row, i, (rule_table + i)->action);
 			return (rule_table + i)->action;
 		}
 	}
 	// if no match was found we log the packet and drop it
-	log_it(REASON_NO_MATCHING_RULE, NF_DROP);
+	log_it(&log_row, REASON_NO_MATCHING_RULE, NF_DROP);
 	return NF_DROP;
 }
 

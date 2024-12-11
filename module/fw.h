@@ -10,6 +10,7 @@
 #include <linux/ip.h>
 #include <linux/tcp.h>
 #include <linux/udp.h>
+#include <linux/time.h>
 
 
 // the protocols we will work with
@@ -86,6 +87,7 @@ typedef struct {
 typedef struct {
 	rule_t rules[MAX_RULES];
 	__u8 size; // number of active rules in the table
+	__u8 valid; // is the table valid
 } rule_table_t;
 
 // logging
