@@ -12,6 +12,67 @@ void print_timestamp(unsigned long timestamp){
     printf("%s", buffer);
 }
 
+// convert an ip address from uint32_t to a human readable format
+void print_ip(uint32_t ip){
+    struct in_addr ip_addr;
+    ip_addr.s_addr = ip;
+    printf("%s", inet_ntoa(ip_addr));
+}
+
+// convert a protocol from uint8_t to a human readable format
+void print_protocol(unsigned char protocol){
+    switch(protocol){
+        case PROT_ICMP:
+            printf("icmp");
+            break;
+        case PROT_TCP:
+            printf("tcp");
+            break;
+        case PROT_UDP:
+            printf("udp");
+            break;
+        default:
+            printf("UNKNOWN");
+            break;
+    }
+}
+
+// convert an action from unsigned char to a human readable format
+void print_action(unsigned char action){
+    switch(action){
+        case NF_ACCEPT:
+            printf("accept");
+            break;
+        case NF_DROP:
+            printf("drop");
+            break;
+        default:
+            printf("UNKNOWN");
+            break;
+    }
+}
+
+// convert a reason from reason_t to a human readable format
+void print_reason(reason_t reason){
+    switch(reason){
+        case REASON_FW_INACTIVE:
+            printf("REASON_FW_INACTIVE");
+            break;
+        case REASON_NO_MATCHING_RULE:
+            printf("REASON_NO_MATCHING_RULE");
+            break;
+        case REASON_XMAS_PACKET:
+            printf("REASON_XMAS_PACKET");
+            break;
+        case REASON_ILLEGAL_VALUE:
+            printf("REASON_ILLEGAL_VALUE");
+            break;
+        default:
+            printf("%d", reason);
+            break;
+    }
+}
+
 // print a single log entry
 // format of the log entry from buffer: <timestamp> <protocol> <action> <src_ip> <dst_ip> <src_port> <dst_port> <reason> <count>
 int print_log_entry(char log_entry[]){
@@ -19,7 +80,16 @@ int print_log_entry(char log_entry[]){
     sscanf(log_entry, "%lu %hhu %hhu %u %u %hu %hu %hhu %u", &log_row.timestamp, &log_row.protocol, &log_row.action, &log_row.src_ip, &log_row.dst_ip, &log_row.src_port, &log_row.dst_port, &log_row.reason, &log_row.count);
     print_timestamp(log_row.timestamp);
     printf("		");
-    printf("%u		%u		%hu		%hu		%hhu		%hhu	%hhu				%u\n", log_row.src_ip, log_row.dst_ip, log_row.src_port, log_row.dst_port, log_row.protocol, log_row.action, log_row.reason, log_row.count);
+    print_ip(log_row.src_ip);
+    printf("		");
+    print_ip(log_row.dst_ip);
+    printf("		%hu		%hu		", log_row.src_port, log_row.dst_port);
+    print_protocol(log_row.protocol);
+    printf("		");
+    print_action(log_row.action);
+    printf("	");
+    print_reason(log_row.reason);
+    printf("				%u\n",log_row.count);
     return 0;
 }
 
