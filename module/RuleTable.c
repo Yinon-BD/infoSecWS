@@ -19,7 +19,6 @@ ssize_t display_rule_table(struct device *dev, struct device_attribute *attr, ch
     ssize_t len = 0;
 
     if(!fw_rule_table.valid || fw_rule_table.size == 0){
-        printk(KERN_INFO "I got into empty ruletable if.\n");
         return scnprintf(buf, PAGE_SIZE, "0\n");
     }
     __u8 rules_size = fw_rule_table.size;
@@ -28,11 +27,8 @@ ssize_t display_rule_table(struct device *dev, struct device_attribute *attr, ch
 
     for(i = 0; i < rules_size; i++){
         rule_t *rule = fw_rule_table.rules + i;
-        printk(KERN_INFO "the ack in table is: %d\n", rule->ack);
-        printk(KERN_INFO "when using hhu the ack is: %hhu\n", rule->ack);
         len += scnprintf(buf + len, PAGE_SIZE - len, "%19s %d %u %u %hhu %u %u %hhu %hu %hu %u %hhu %hhu\n", rule->rule_name, rule->direction, rule->src_ip, rule->src_prefix_mask, rule->src_prefix_size, rule->dst_ip, rule->dst_prefix_mask, rule->dst_prefix_size, rule->src_port, rule->dst_port, rule->protocol, rule->ack, rule->action);
     }
-    printk(KERN_INFO "I'm sorry.\n %s\n", buf);
 
     return len;
 }
