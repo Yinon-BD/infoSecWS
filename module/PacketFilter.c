@@ -19,7 +19,7 @@ unsigned int filter(void *priv, struct sk_buff *skb, const struct nf_hook_state 
 		return NF_ACCEPT;
 	}
 
-	set_packet_direction(skb, &direction, state);
+	set_packet_direction(skb, &packet_direction, state);
 	ip_header = ip_hdr(skb);
 	packet_src_ip = ip_header->saddr;
 	packet_dst_ip = ip_header->daddr;
@@ -49,7 +49,7 @@ unsigned int filter(void *priv, struct sk_buff *skb, const struct nf_hook_state 
 		
 	}
 
-	if(is_valid_rule_table() == 0 || get_rule_table_size() == 0){
+	if(is_rule_table_valid() == 0 || get_rule_table_size() == 0){
 		log_it(&log_row, REASON_FW_INACTIVE, NF_ACCEPT);
 		return NF_ACCEPT;
 	}

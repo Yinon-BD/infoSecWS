@@ -8,7 +8,7 @@
 
 #define LOG_BUFFER_SIZE (sizeof(unsigned long) + sizeof(unsigned char) + sizeof(unsigned char) + sizeof(__be32) + sizeof(__be32) + sizeof(__be16) + sizeof(__be16) + sizeof(reason_t) + sizeof(unsigned int))
 
-typedef struct firewall_log {
+struct firewall_log {
     struct list_head list;
     log_row_t log_data;
 };

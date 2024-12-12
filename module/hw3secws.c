@@ -60,7 +60,7 @@ static int __init firewall_module(void){
 	}
 
 	if(device_create_file(log_device, (const struct device_attribute*)&dev_attr_reset.attr) != 0){
-		goto logs_device_file_creation_error;
+		goto log_device_file_creation_error;
 	}
 
 	// create the rules device and sysfs attributes
@@ -85,9 +85,9 @@ rules_device_creation_error:
 	unregister_chrdev(rules_device_major, "rules");
 rules_device_registration_error:
 	device_remove_file(log_device, (const struct device_attribute*)&dev_attr_reset.attr);
-logs_device_file_creation_error:
+log_device_file_creation_error:
 	device_destroy(sysfs_class, MKDEV(log_device_major, 0));
-logs_device_creation_error:
+log_device_creation_error:
 	class_destroy(sysfs_class);
 sysfs_class_creation_error:
 	unregister_chrdev(log_device_major, "fw_log");
