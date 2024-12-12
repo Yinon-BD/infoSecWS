@@ -1,4 +1,6 @@
-#include "header.h"
+#include "UserParser.h"
+#include "UserRulesOperations.h"
+#include "UserLogOperations.h"
 
 int main(int argc, char** argv) {
     if(argc == 1){
