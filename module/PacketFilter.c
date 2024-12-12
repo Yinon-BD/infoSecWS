@@ -24,6 +24,9 @@ unsigned int filter(void *priv, struct sk_buff *skb, const struct nf_hook_state 
 	packet_src_ip = ip_header->saddr;
 	packet_dst_ip = ip_header->daddr;
 	packet_protocol = ip_header->protocol;
+	if(packet_protocol == PROT_ICMP){
+		printk(KERN_INFO "recieved ping packet.\n");
+	}
 	set_packet_src_and_dst_ports(skb, &packet_src_port, &packet_dst_port);
 	set_log_address_and_protocol(&log_row, packet_src_ip, packet_dst_ip, packet_src_port, packet_dst_port, packet_protocol);
 	if(packet_protocol == PROT_TCP){

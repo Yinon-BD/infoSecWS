@@ -237,7 +237,7 @@ int show_rules(void){
             return -1;
         }
         if(print_rule(line) == -1){
-            printf("Failed to print rule\n");
+            printf("Failed to print rule number %d.\n", i);
             fclose(fp);
             return -1;
         }
@@ -255,7 +255,7 @@ int load_rules(char *file_path){
         return -1;
     }
     char line[256];
-    while(fgets(line, sizeof(line), fp) != NULL){
+    while(num_rules < MAX_RULES && fgets(line, sizeof(line), fp) != NULL){
         if(string_to_rule(line, &rule_table[num_rules]) == -1){
             printf("Failed to convert string to rule in line %d.\n", num_rules);
             fclose(fp);

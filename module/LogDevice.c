@@ -42,6 +42,7 @@ void clear_log(void){
         list_del(&entry->list);
         kfree(entry);
     }
+    log_list_len = 0;
 }
 
 ssize_t modify_log_device(struct device *dev, struct device_attribute *attr, const char *buf, size_t count){
@@ -98,10 +99,12 @@ ssize_t read_log_device(struct file *file, char __user *buf, size_t count, loff_
     if(count < LOG_BUFFER_SIZE){
         return -EINVAL;
     }
+    printk(KERN_INFO "reason: %d\n", current_log->log_data.reason);
+    printk(KERN_INFO "count: %u\n", current_log->log_data.count);
 
     // format of the log entry: <timestamp> <protocol> <action> <src_ip> <dst_ip> <src_port> <dst_port> <reason> <count>
     len = scnprintf(
-        log_buffer, LOG_BUFFER_SIZE, "%lu %u %u %u %u %u %u %u %u\n",
+        log_buffer, LOG_BUFFER_SIZE, "%lu %u %hhu %u %u %hu %hu %d %u\n",
         current_log->log_data.timestamp,
         current_log->log_data.protocol,
         current_log->log_data.action,
@@ -112,6 +115,7 @@ ssize_t read_log_device(struct file *file, char __user *buf, size_t count, loff_
         current_log->log_data.reason,
         current_log->log_data.count
     );
+    printk(KERN_INFO "We gonna pass this:\n%s\n", log_buffer);
 
     // copy the log entry to the user
     if(copy_to_user(buf, log_buffer, len) != 0){

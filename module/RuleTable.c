@@ -19,6 +19,7 @@ ssize_t display_rule_table(struct device *dev, struct device_attribute *attr, ch
     ssize_t len = 0;
 
     if(!fw_rule_table.valid || fw_rule_table.size == 0){
+        printk(KERN_INFO "I got into empty ruletable if.\n");
         return scnprintf(buf, PAGE_SIZE, "0\n");
     }
     __u8 rules_size = fw_rule_table.size;
@@ -27,8 +28,11 @@ ssize_t display_rule_table(struct device *dev, struct device_attribute *attr, ch
 
     for(i = 0; i < rules_size; i++){
         rule_t *rule = fw_rule_table.rules + i;
-        len += scnprintf(buf + len, PAGE_SIZE - len, "%s %d %u %u %u %u %u %u %u %u %u %u %u\n", rule->rule_name, rule->direction, rule->src_ip, rule->src_prefix_mask, rule->src_prefix_size, rule->dst_ip, rule->dst_prefix_mask, rule->dst_prefix_size, rule->src_port, rule->dst_port, rule->protocol, rule->ack, rule->action);
+        printk(KERN_INFO "the ack in table is: %d\n", rule->ack);
+        printk(KERN_INFO "when using hhu the ack is: %hhu\n", rule->ack);
+        len += scnprintf(buf + len, PAGE_SIZE - len, "%19s %d %u %u %hhu %u %u %hhu %hu %hu %u %hhu %hhu\n", rule->rule_name, rule->direction, rule->src_ip, rule->src_prefix_mask, rule->src_prefix_size, rule->dst_ip, rule->dst_prefix_mask, rule->dst_prefix_size, rule->src_port, rule->dst_port, rule->protocol, rule->ack, rule->action);
     }
+    printk(KERN_INFO "I'm sorry.\n %s\n", buf);
 
     return len;
 }
@@ -39,10 +43,9 @@ ssize_t modify_rule_table(struct device *dev, struct device_attribute *attr, con
     const char *cursor = buf;
 
     // Parse the number of rules
-    if (sscanf(cursor, "%u", &rules_size) != 1) {
+    if (sscanf(cursor, "%hhu", &rules_size) != 1) {
         return -EINVAL;  // Invalid input format
     }
-
     // Advance cursor past the first line (number of rules)
     cursor = strchr(cursor, '\n');
     if (!cursor) {
@@ -60,7 +63,7 @@ ssize_t modify_rule_table(struct device *dev, struct device_attribute *attr, con
     for (i = 0; i < rules_size; i++) {
         rule_t rule;
         const char *next_line;
-        int parsed = sscanf(cursor, "%19s %d %u %u %u %u %u %u %u %u %u %u %u",
+        int parsed = sscanf(cursor, "%19s %d %u %u %hhu %u %u %hhu %hu %hu %u %hhu %hhu",
                             rule.rule_name, &rule.direction, &rule.src_ip, &rule.src_prefix_mask,
                             &rule.src_prefix_size, &rule.dst_ip, &rule.dst_prefix_mask,
                             &rule.dst_prefix_size, &rule.src_port, &rule.dst_port,
@@ -72,7 +75,6 @@ ssize_t modify_rule_table(struct device *dev, struct device_attribute *attr, con
 
         // Add rule to the table
         fw_rule_table.rules[i] = rule;
-
         // Find the next line
         next_line = strchr(cursor, '\n');
         if (!next_line) {

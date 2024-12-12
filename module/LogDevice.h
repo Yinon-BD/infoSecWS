@@ -6,7 +6,7 @@
 #include "fw.h"
 #include "RuleTable.h"
 
-#define LOG_BUFFER_SIZE (sizeof(unsigned long) + sizeof(unsigned char) + sizeof(unsigned char) + sizeof(__be32) + sizeof(__be32) + sizeof(__be16) + sizeof(__be16) + sizeof(reason_t) + sizeof(unsigned int))
+#define LOG_BUFFER_SIZE (sizeof(unsigned long) + sizeof(unsigned char) + sizeof(unsigned char) + sizeof(__be32) + sizeof(__be32) + sizeof(__be16) + sizeof(__be16) + sizeof(int) + sizeof(unsigned int))
 
 struct firewall_log {
     struct list_head list;
