@@ -1,5 +1,13 @@
 #include "UserRulesOperations.h"
 
+char *my_itoa(unsigned int number, char* str){
+    if(str == NULL){
+        return NULL;
+    }
+    sprintf(str, "%u", number);
+    return str;
+}
+
 int direction_to_string(direction_t direction, char* str){
     switch(direction){
         case DIRECTION_IN:
@@ -19,20 +27,22 @@ int direction_to_string(direction_t direction, char* str){
 
 // convert ip address to string of the form "x.x.x.x/y"
 int ip_to_string(uint32_t ip, uint32_t mask, uint32_t size, char* str){
-    // first check if IP is any
-    if(ip == 0 && mask == 0 && size == 0){
-        strcpy(str, "any");
-        return 0;
-    }
     struct in_addr ip_addr;
     struct in_addr mask_addr;
     ip_addr.s_addr = ip;
     mask_addr.s_addr = mask;
+    char size_buf[3];
+    // first check if IP is any
+    if(ip == 0 && mask == 0 && size == 0){
+        strcpy(str, "any ");
+        return 0;
+    }
     if(inet_ntop(AF_INET, &ip_addr, str, INET_ADDRSTRLEN) == NULL){
         return -1;
     }
     strcat(str, "/");
-    strcat(str, itoa(size));
+    snprintf(size_buf, sizeof(size_buf), "%d", size);
+    strcat(str, size_buf);
     strcat(str, " ");
     return 0;
 }
@@ -57,13 +67,13 @@ int port_to_string(uint16_t port, char* str){
 int protocol_to_string(uint8_t protocol, char* str){
     switch(protocol){
         case PROT_ICMP:
-            strcpy(str, "icmp ");
+            strcpy(str, "ICMP ");
             break;
         case PROT_TCP:
-            strcpy(str, "tcp ");
+            strcpy(str, "TCP ");
             break;
         case PROT_UDP:
-            strcpy(str, "udp ");
+            strcpy(str, "UDP ");
             break;
         case PROT_OTHER:
             strcpy(str, "other ");
@@ -130,6 +140,11 @@ int print_rule(char* line){
         printf("Failed to convert dst ip to string\n");
         return -1;
     }
+    // add protocol to print buffer
+    if(protocol_to_string(rule.protocol, STRING_TAIL(print_buf)) == -1){
+        printf("Failed to convert protocol to string\n");
+        return -1;
+    }
     // add src port to print buffer
     if(port_to_string(rule.src_port, STRING_TAIL(print_buf)) == -1){
         printf("Failed to convert src port to string\n");
@@ -138,11 +153,6 @@ int print_rule(char* line){
     // add dst port to print buffer
     if(port_to_string(rule.dst_port, STRING_TAIL(print_buf)) == -1){
         printf("Failed to convert dst port to string\n");
-        return -1;
-    }
-    // add protocol to print buffer
-    if(protocol_to_string(rule.protocol, STRING_TAIL(print_buf)) == -1){
-        printf("Failed to convert protocol to string\n");
         return -1;
     }
     // add ack to print buffer
@@ -166,40 +176,40 @@ int rule_to_buffer(rule_t* rule, char* buf){
     strcpy(buf, rule->rule_name);
     strcat(buf, " ");
     // add direction to buffer
-    itoa(rule->direction, STRING_TAIL(buf), 10);
+    my_itoa(rule->direction, STRING_TAIL(buf));
     strcat(buf, " ");
     // add src ip to buffer
-    itoa(rule->src_ip, STRING_TAIL(buf), 10);
+    my_itoa(rule->src_ip, STRING_TAIL(buf));
     strcat(buf, " ");
     // add src prefix mask to buffer
-    itoa(rule->src_prefix_mask, STRING_TAIL(buf), 10);
+    my_itoa(rule->src_prefix_mask, STRING_TAIL(buf));
     strcat(buf, " ");
     // add src prefix size to buffer
-    itoa(rule->src_prefix_size, STRING_TAIL(buf), 10);
+    my_itoa(rule->src_prefix_size, STRING_TAIL(buf));
     strcat(buf, " ");
     // add dst ip to buffer
-    itoa(rule->dst_ip, STRING_TAIL(buf), 10);
+    my_itoa(rule->dst_ip, STRING_TAIL(buf));
     strcat(buf, " ");
     // add dst prefix mask to buffer
-    itoa(rule->dst_prefix_mask, STRING_TAIL(buf), 10);
+    my_itoa(rule->dst_prefix_mask, STRING_TAIL(buf));
     strcat(buf, " ");
     // add dst prefix size to buffer
-    itoa(rule->dst_prefix_size, STRING_TAIL(buf), 10);
+    my_itoa(rule->dst_prefix_size, STRING_TAIL(buf));
     strcat(buf, " ");
     // add src port to buffer
-    itoa(rule->src_port, STRING_TAIL(buf), 10);
+    my_itoa(rule->src_port, STRING_TAIL(buf));
     strcat(buf, " ");
     // add dst port to buffer
-    itoa(rule->dst_port, STRING_TAIL(buf), 10);
+    my_itoa(rule->dst_port, STRING_TAIL(buf));
     strcat(buf, " ");
     // add protocol to buffer
-    itoa(rule->protocol, STRING_TAIL(buf), 10);
+    my_itoa(rule->protocol, STRING_TAIL(buf));
     strcat(buf, " ");
     // add ack to buffer
-    itoa(rule->ack, STRING_TAIL(buf), 10);
+    my_itoa(rule->ack, STRING_TAIL(buf));
     strcat(buf, " ");
     // add action to buffer
-    itoa(rule->action, STRING_TAIL(buf), 10);
+    my_itoa(rule->action, STRING_TAIL(buf));
     return 0;
 }
 
@@ -277,7 +287,7 @@ int load_rules(char *file_path){
 }
 
 // convert a rule in string format to a rule_t struct
-// string format: <rule_name> <direction> <src_ip>/<src_prefix_size> <dst_ip>/<dst_prefix_size> <src_port> <dst_port> <protocol> <ack> <action>
+// string format: <rule_name> <direction> <src_ip>/<src_prefix_size> <dst_ip>/<dst_prefix_size> <protocol> <src_port> <dst_port> <ack> <action>
 int string_to_rule(char* line, rule_t* rule){
     char direction_str[5];
     char src_ip_str[20], dst_ip_str[20];
@@ -286,7 +296,7 @@ int string_to_rule(char* line, rule_t* rule){
     char ack_str[5];
     char action_str[10];
     sscanf(line, "%s %s %s %s %s %s %s %s %s\n",
-    rule->rule_name, direction_str, src_ip_str, dst_ip_str, src_port_str, dst_port_str, protocol_str, ack_str, action_str);
+    rule->rule_name, direction_str, src_ip_str, dst_ip_str, protocol_str, src_port_str, dst_port_str, ack_str, action_str);
     // convert direction to direction_t
     if(string_to_direction(direction_str, &rule->direction) == -1){
         printf("Failed to convert direction string to direction_t\n");
@@ -357,7 +367,7 @@ int string_to_ip(char* str, uint32_t* ip, uint32_t* mask, uint32_t* size){
     }
     char ip_str[20];
     char size_str[5];
-    sscanf(str, "%s/%s", ip_str, size_str);
+    sscanf(str, "%19[^/]/%s", ip_str, size_str);
     if(inet_pton(AF_INET, ip_str, ip) != 1){
         return -1;
     }
@@ -386,13 +396,13 @@ int string_to_port(char* str, uint16_t* port){
 
 // convert a protocol string to uint8_t
 int string_to_protocol(char* str, uint8_t* protocol){
-    if(strcmp(str, "icmp") == 0){
+    if(strcmp(str, "ICMP") == 0){
         *protocol = PROT_ICMP;
     }
-    else if(strcmp(str, "tcp") == 0){
+    else if(strcmp(str, "TCP") == 0){
         *protocol = PROT_TCP;
     }
-    else if(strcmp(str, "udp") == 0){
+    else if(strcmp(str, "UDP") == 0){
         *protocol = PROT_UDP;
     }
     else if(strcmp(str, "other") == 0){

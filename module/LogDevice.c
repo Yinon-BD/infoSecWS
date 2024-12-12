@@ -32,6 +32,7 @@ void log_it(log_row_t *log_row, reason_t reason, unsigned char action){
     struct firewall_log *new_log = (struct firewall_log*)kmalloc(sizeof(struct firewall_log), GFP_KERNEL);
     new_log->log_data = *log_row;
     list_add_tail(&new_log->list, &log_list);
+    log_list_len++;
 }
 
 void clear_log(void){

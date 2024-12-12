@@ -36,6 +36,7 @@ int show_log(void){
         fclose(fp);
         return -1;
     }
+    printf("log count is %d\n", log_count);
     // the first print will be the title of the logs
     printf("timestamp			src_ip			dst_ip			src_port	dst_port	protocol	action	reason				count\n");
     // now read the log entries
