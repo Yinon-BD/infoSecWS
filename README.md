@@ -1,109 +1,88 @@
-# InfoSec Workshop HW3:
+# InfoSec Workshop HW3
 
-In this assignment I implemented a stateless packet filtering firewall.
+In this assignment, I implemented a stateless packet-filtering firewall.
 
-The Operation of the firewall is based on a rule table that is loaded to the firewall thorugh the user.
+The firewall operates based on a rule table provided by the user. The implementation involves functionality in both user space and kernel space.
 
-The implementation is taking place in both the User-space and the kernel-space.
+## Features
 
-There are 4 functions the firewall support besides packet filtering:
+The firewall supports the following features:
 
-1. Loading a new rule table to the firewall
-2. printing the rule table to the user
-3. sending filtering logs to the user
-4. reset the logs based on user request
+1. Loading a new rule table.
+2. Printing the rule table to the user.
+3. Sending filtering logs to the user.
+4. Resetting logs upon user request.
 
 ## Kernel Space Functionality
 
-The netfilter API is used to "catch" the arriving packets and decide wether a packet should be accepted or dropped.
-To communicate between the userspace and the kernel-space I created one Char Device to pass the logs thorugh, and two sysfs devices to pass the rule table and request log reset.
+The kernel-space implementation uses the `netfilter` API to "catch" arriving packets and decide whether to accept or drop them. Communication between user space and kernel space is facilitated by:
+- A character device for passing logs.
+- Two `sysfs` devices for passing the rule table and resetting logs.
 
-The kernel code is divided into 4 files:
-- hw3secws: the file which initiates the module, the char and sysfs devices and the netfilter hook.
-- RuleTable: the file which stores the rule table in kernel space, builds it from user input and outputs it upon user's  request.
-- PacketFilter: the file that contains the netfilter hook function, that decides packets' fate.
-- LogDevice: the file that stores the logs, packet filter history, and outputs it to the user or resets it upon the user's request.
+The kernel code consists of four files:
 
-### hw3secws
+- **`hw3secws`**: Initializes the module, character, and `sysfs` devices and sets up the netfilter hook.
+- **`RuleTable`**: Manages the rule table, including storing, building, and displaying it.
+- **`PacketFilter`**: Implements the filtering logic using the netfilter hook.
+- **`LogDevice`**: Manages the logs, including storing, displaying, and resetting them.
 
-when the module loads, it runs the *firewall_module* which do:
-1. initialize the netfilter hook, configure it the catch packets the are being forwarded and act according to the filter function in PacketFilter file.
-2. creates a char device for reading logs, it has the open and read functions that are implemented in the LogDevice file.
-3. creates a sysfs class
-4. creates another char device for reseting the logs, we create a sysfs device and give it the store function which is implemented in LogDevice file.
-5. creates a sysfs device for the rule table which will display the rule table to the user and modify it when the kernel recieve a new one from the user.
+### `hw3secws`
 
-### RuleTable
+When the module loads, it performs the following steps:
+1. Initializes the netfilter hook to filter forwarded packets using the `filter` function from the `PacketFilter` file.
+2. Creates a character device for reading logs, with `open` and `read` functions implemented in the `LogDevice` file.
+3. Creates a `sysfs` class and devices for:
+   - Resetting logs (store function in `LogDevice`).
+   - Displaying and modifying the rule table.
 
-This file manages the rule table.
-It contains a rule_table struct which contains info about the rule table size and its validity.
-It also contains an array of rule structs.
+### `RuleTable`
 
-There are two main functions in RuleTable:
+This file manages the rule table using the `rule_table` structure. It includes:
+- **`display_rule_table`**: Sends a buffer containing the table size and compressed rules to the user.
+- **`modify_rule_table`**: Creates a new rule table from user input by parsing a compressed buffer of rules.
 
-*display_rule_table*: this function sends the user a buffer which will contains the size of the firewall and a stream of strings that would tell the user how to build the rules.
-auxilary functions are used to "compress" the rules and send it to the user a string stream.
+### `PacketFilter`
 
-*modify_rule_table*: this function creates a new ruletable based on the user input. the function receive a compressed buffer that contains the amount of rules and the rules themselves.
-Using auxilary functions it parses the buffer and create a new rule table.
+Contains the primary function `filter`, which:
+- Decides whether to accept or drop a packet.
+- Creates log entries and sends them to the `LogDevice`.
 
-### PacketFilter
+### `LogDevice`
 
-This file contains one main function: *filter*
-This function decides wether the netfilter hook should accept or drop an arriving packet.
-This function also create a log entry and fill its fields. Before returning an action to the hook, it sends the LogDevice the new log to be added to the log list.
+Manages logs using a `klist` data structure. Key functions:
+- **`log_it`**: Adds or updates log entries.
+- **`open_log_device`** and **`read_log_device`**: Allow the user to read log entries sequentially.
+- **`clear_log`**: Resets logs when requested by the user.
 
-There are other helper functions for the filter, which are documented in the code.
+## User Space Functionality
 
-### LogDevice
+The user-space implementation parses user commands and interacts with kernel-space devices. It comprises three files:
 
-This file manages the filtering logs.
-It using the klist data structure to hold the logs.
-The function *log_it* gets new logs from the packetfilter function and either make a new node list if there are on other packets from this type or increment the count field on a matching log node.
+- **`UserParser`**: Parses user commands and executes corresponding actions.
+- **`UserLogOperations`**: Handles log-related actions (e.g., reading and resetting logs).
+- **`UserRuleTable`**: Manages rule table operations (e.g., loading and displaying rules).
 
-Using the *open_log_device* and *read_log_device* the char device pass the log entries to the user.
-Although when the user asks to show logs it asks to get the whole log list, I decided to implement the read function so in each call the user will get one log entry to avoid kernel blocking.
+### `UserParser`
 
-The function *clear_log* resets the log upon recieving a command from the user.
+Contains the `main` function, which supports the following commands:
+1. `load_rules <filepath>`: Loads a new rule table from the specified file.
+2. `show_rules`: Displays the current active rule table.
+3. `show_log`: Displays log entries.
+4. `reset_log`: Resets the stored logs.
 
+### `UserLogOperations`
 
-## UserSpace Functionality
+Implements:
+- **`show_log`**: Reads log entries from the kernel. The first read call fetches the log count; subsequent calls fetch entries sequentially.
+                    It also converts the raw data from the buffer into a human-readable format, ensuring that the logs are easy to understand for the user.
+- **`reset_log`**: Sends a reset command to the kernel via the `sysfs` device.
 
-In the UserSpace the right data is sent or recieved from the kernel based on the user commands.
+### `UserRuleTable`
 
-The userspace has three files:
+Implements:
+- **`show_rules`**: Reads the active rule table from the kernel and formats it for display.
+- **`load_rules`**: Reads a rule table from a file, compresses it, and sends it to the kernel.
 
-- UserParser: This File parse the user commands and executes the right function based on user arguments.
-- UserLogOperations: This File contains the function that interacts with the log char device and the log sysfs device to read and reset the logs
-- UserRuleTabel: This File contains functions that related to ruletable functions, such as load and receiving a ruletable
+Both functions handle errors at every stage and print appropriate messages to the user.
 
-### UserParser:
-
-In this file lies the ***main*** function. It parses the the user arguments and runs the right function for the desired action.
-The accepted arguments are the following:
-1. load_rules <filepath> - it will load a new ruletable to the kernel that contained in the file provided
-2. show_rules - this will print to the user the current active ruletable in the kernel.
-3. show_log - this will print to the user the log entries
-4. reset_log - this will reset the logs that stored in the kernel
-
-This file's header also contains libraries and struct which other userspace files can use.
-
-### UserLogOperations
-
-This file contains the implementations to the *show_log* and *reset_log* functions.
-
-*show_log*: this function opens the char device and try to read the log entries from the device. In the first call to read, the device returns the amount of log entries so the function can know how many read calls should it make. each read call returns one log entry (or amount of log entries in first call) in order to avoid kernel blocking.
-
-*reset_log*: this function sends to the sysfs device the string "1" to ask it to reset the logs.
-
-### UserRuleOperations
-
-This file contains the implementations to the *show_rules* and *load_rules* functions.
-
-*show_rules:* this function try to read from the kernel the active ruletable. it first gets the amount of active rules in the rule table. Then upon receiving each buffer line it creates a rule struct array for the rules. after building the array the function print the rules in human readable form. It uses auxilary function to build a rule from the buffer, and build a printable string from a rule struct.
-
-*load_rules(char[])*: this function tries to build a rule table from the given file. Upon succeeding, it converts the rules to a compressed buffer and send it to the device.
-
-In both of these function, upon any failure in any stage (file to rule, rule to buffer, buffer to rule, etc.), the function prints an error message to the user and signals the main to stop the execution.
-
-
+---
