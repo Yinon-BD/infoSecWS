@@ -18,5 +18,6 @@ void log_it(log_row_t *log_row, reason_t reason, unsigned char action);
 ssize_t modify_log_device(struct device *dev, struct device_attribute *attr, const char *buf, size_t count);
 int open_log_device(struct inode *inode, struct file *file);
 ssize_t read_log_device(struct file *file, char __user *buf, size_t count, loff_t *pos);
+void clear_log(void);
 
 #endif // _LOGDEVICE_H_

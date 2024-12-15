@@ -130,6 +130,7 @@ nf_hook_registration_error:
 }
 
 static void __exit firewall_module_exit(void){
+	clear_log(); // clear any exist log entries
 	device_remove_file(rules_device, (const struct device_attribute*)&dev_attr_rules.attr);
 	device_destroy(sysfs_class, MKDEV(rules_device_major, 0));
 	unregister_chrdev(rules_device_major, "rules");
