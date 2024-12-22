@@ -6,6 +6,7 @@ unsigned int filter(void *priv, struct sk_buff *skb, const struct nf_hook_state 
 	struct tcphdr *tcp_header;
 	struct udphdr *udp_header;
 	log_row_t log_row;
+	tcp_packet_t packet_type;
 
 	direction_t packet_direction;
 	__be32	packet_src_ip;
@@ -57,6 +58,29 @@ unsigned int filter(void *priv, struct sk_buff *skb, const struct nf_hook_state 
 	rule_t *rule_table = get_rule_table();
 	int i;
 	for(i = 0; i < get_rule_table_size(); i++){
+		// we want to add the dynamic connection table logic for a TCP packet
+		if(packet_protocol == PROT_TCP){
+			tcp_header = tcp_hdr(skb);
+			packet_type = get_packet_type(tcp_header);
+			// if the packet is a SYN packet we need to check for a match in the stateless rules first
+			if(packet_type == TCP_SYN && check_for_match(rule_table + i, packet_direction, packet_src_ip, packet_dst_ip, packet_src_port, packet_dst_port, packet_protocol, packet_ack)){
+				log_it(&log_row, i, (rule_table + i)->action);
+				// if the action is ACCEPT we add the connection to the connection table
+				if((rule_table + i)->action == NF_ACCEPT){
+					add_connection(packet_src_ip, packet_dst_ip, packet_src_port, packet_dst_port, TCP_STATE_SYN_SENT);
+				}
+				return (rule_table + i)->action;
+			}
+			// if the packet is a SYN-ACK packet we need to check for a match in the stateful rules
+			// the packet would be accepted if there is a connection in the connection table with flipped src and dst in state TCP_STATE_SYN_SENT
+			else if(packet_type == TCP_SYN_ACK){
+				if(get_connection_state(packet_dst_ip, packet_src_ip, packet_dst_port, packet_src_port) == TCP_STATE_SYN_SENT){
+					// TODO: ask about logging an active TCP-connection
+					add_connection(packet_src_ip, packet_dst_ip, packet_src_port, packet_dst_port, TCP_STATE_SYN_RECV);
+					return NF_ACCEPT;
+				}
+			}
+		}
 		if(check_for_match(rule_table + i, packet_direction, packet_src_ip, packet_dst_ip, packet_src_port, packet_dst_port, packet_protocol, packet_ack)){
 			log_it(&log_row, i, (rule_table + i)->action);
 			return (rule_table + i)->action;
@@ -125,4 +149,29 @@ int check_for_match(rule_t *rule, direction_t packet_direction, __be32 packet_sr
 		return 0;
 	}
 	return 1;
+}
+
+tcp_packet_t get_packet_type(struct tcphdr *tcp_header){
+	if(tcp_header->syn && !tcp_header->ack){
+		return TCP_SYN;
+	}
+	if(tcp_header->syn && tcp_header->ack){
+		return TCP_SYN_ACK;
+	}
+	if(tcp_header->fin && !tcp_header->ack){
+		return TCP_FIN;
+	}
+	if(tcp_header->fin && tcp_header->ack){
+		return TCP_FIN_ACK;
+	}
+	if(tcp_header->rst && !tcp_header->ack){
+		return TCP_RST;
+	}
+	if(tcp_header->rst && tcp_header->ack){
+		return TCP_RST_ACK;
+	}
+	if(tcp_header->ack){
+		return TCP_ACK;
+	}
+	return TCP_UNKNOWN;
 }

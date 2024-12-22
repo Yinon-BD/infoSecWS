@@ -3,6 +3,7 @@
 
 #include "fw.h"
 #include "RuleTable.h"
+#include "ConnectionTable.h"
 
 // the function that will be called by netfilter hook
 unsigned int filter(void *priv, struct sk_buff *skb, const struct nf_hook_state *state);
