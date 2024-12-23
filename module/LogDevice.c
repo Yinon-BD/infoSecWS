@@ -22,7 +22,7 @@ void log_it(log_row_t *log_row, reason_t reason, unsigned char action){
     // iterate over the list and check if the log already exists
     struct firewall_log *entry;
     list_for_each_entry(entry, &log_list, list){
-        if(entry->log_data.src_ip == log_row->src_ip && entry->log_data.dst_ip == log_row->dst_ip && entry->log_data.src_port == log_row->src_port && entry->log_data.dst_port == log_row->dst_port && entry->log_data.protocol == log_row->protocol){
+        if(entry->log_data.src_ip == log_row->src_ip && entry->log_data.dst_ip == log_row->dst_ip && entry->log_data.src_port == log_row->src_port && entry->log_data.dst_port == log_row->dst_port && entry->log_data.protocol == log_row->protocol, entry->log_data.action == log_row->action){ // added a check for action because our fw is stateful now
             entry->log_data.count++;
             entry->log_data.timestamp = log_row->timestamp;
             return;

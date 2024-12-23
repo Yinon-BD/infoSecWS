@@ -15,6 +15,7 @@ typedef struct {
 // create enum for TCP states
 typedef enum {
     TCP_STATE_CLOSED = 0,
+    TCP_STATE_LISTEN,
     TCP_STATE_SYN_SENT,
     TCP_STATE_SYN_RECV,
     TCP_STATE_ESTABLISHED,

@@ -7,6 +7,7 @@ unsigned int filter(void *priv, struct sk_buff *skb, const struct nf_hook_state 
 	struct udphdr *udp_header;
 	log_row_t log_row;
 	tcp_packet_t packet_type;
+	rule_t *rule_table;
 
 	direction_t packet_direction;
 	__be32	packet_src_ip;
@@ -55,7 +56,7 @@ unsigned int filter(void *priv, struct sk_buff *skb, const struct nf_hook_state 
 		return NF_ACCEPT;
 	}
 
-	rule_t *rule_table = get_rule_table();
+	rule_table = get_rule_table();
 	int i;
 	for(i = 0; i < get_rule_table_size(); i++){
 		// we want to add the dynamic connection table logic for a TCP packet
@@ -75,13 +76,16 @@ unsigned int filter(void *priv, struct sk_buff *skb, const struct nf_hook_state 
 			// the packet would be accepted if there is a connection in the connection table with flipped src and dst in state TCP_STATE_SYN_SENT
 			else if(packet_type == TCP_SYN_ACK){
 				if(get_connection_state(packet_dst_ip, packet_src_ip, packet_dst_port, packet_src_port) == TCP_STATE_SYN_SENT){
-					// TODO: ask about logging an active TCP-connection
+					log_it(&log_row, 1, NF_ACCEPT); // the reason is not important here, the log is already existent
 					add_connection(packet_src_ip, packet_dst_ip, packet_src_port, packet_dst_port, TCP_STATE_SYN_RECV);
 					return NF_ACCEPT;
 				}
+				log_it(&log_row, REASON_UNMATCHING_STATE, NF_DROP);
+				return NF_DROP;
 			}
+			else if
 		}
-		if(check_for_match(rule_table + i, packet_direction, packet_src_ip, packet_dst_ip, packet_src_port, packet_dst_port, packet_protocol, packet_ack)){
+		else if(check_for_match(rule_table + i, packet_direction, packet_src_ip, packet_dst_ip, packet_src_port, packet_dst_port, packet_protocol, packet_ack)){
 			log_it(&log_row, i, (rule_table + i)->action);
 			return (rule_table + i)->action;
 		}
@@ -174,4 +178,27 @@ tcp_packet_t get_packet_type(struct tcphdr *tcp_header){
 		return TCP_ACK;
 	}
 	return TCP_UNKNOWN;
+}
+
+__u8 validate_TCP_packet(struct tcphdr *tcp_header, __be32 src_ip, __be32 dst_ip, __be16 src_port, __be16 dst_port, log_row_t *log_row){ // logic for non SYN packets
+	tcp_state_t state;
+	tcp_packet_t packet_type;
+	__u8 action;
+
+	state = get_connection_state(src_ip, dst_ip, src_port, dst_port);
+	packet_type = get_packet_type(tcp_header);
+	switch(state){
+		case TCP_STATE_CLOSED:
+			if(packet_type == TCP_RST || packet_type == TCP_RST_ACK){
+				action = NF_ACCEPT;
+				log_it(log_row, REASON_RST_PACKET, action);
+				// we remove the connection from the connection table in both sides
+				remove_connection(src_ip, dst_ip, src_port, dst_port);
+				remove_connection(dst_ip, src_ip, dst_port, src_port);
+			}
+			else{
+				action = NF_DROP;
+			}
+	}
+	
 }
