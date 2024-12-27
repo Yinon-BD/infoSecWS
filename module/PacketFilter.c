@@ -69,6 +69,7 @@ unsigned int filter(void *priv, struct sk_buff *skb, const struct nf_hook_state 
 				// if the action is ACCEPT we add the connection to the connection table
 				if((rule_table + i)->action == NF_ACCEPT){
 					add_connection(packet_src_ip, packet_dst_ip, packet_src_port, packet_dst_port, TCP_STATE_SYN_SENT);
+					add_connection(packet_dst_ip, packet_src_ip, packet_dst_port, packet_src_port, TCP_STATE_LISTEN);
 				}
 				return (rule_table + i)->action;
 			}
@@ -191,14 +192,79 @@ __u8 validate_TCP_packet(struct tcphdr *tcp_header, __be32 src_ip, __be32 dst_ip
 		case TCP_STATE_CLOSED:
 			if(packet_type == TCP_RST || packet_type == TCP_RST_ACK){
 				action = NF_ACCEPT;
-				log_it(log_row, REASON_RST_PACKET, action);
+				log_it(log_row, 1, action);
 				// we remove the connection from the connection table in both sides
 				remove_connection(src_ip, dst_ip, src_port, dst_port);
 				remove_connection(dst_ip, src_ip, dst_port, src_port);
+				return action;
 			}
 			else{
 				action = NF_DROP;
+				log_it(log_row, REASON_UNMATCHING_STATE, action);
+				return action;
 			}
+			break;
+		case TCP_STATE_SYN_SENT: // this is a client only state
+			if(packet_type == TCP_RST || packet_type == TCP_RST_ACK){
+				// if we receive an RST packet we need to switch to closed states
+				close_connection(src_ip, dst_ip, src_port, dst_port);
+				close_connection(dst_ip, src_ip, dst_port, src_port);
+				action = NF_ACCEPT;
+				log_it(log_row, 1, action);
+				return action;
+			}
+			else if(packet_type == TCP_ACK){
+				// if the client sends an ACK packet we need to switch to established states
+				update_connection_state(src_ip, dst_ip, src_port, dst_port, TCP_STATE_ESTABLISHED);
+				update_connection_state(dst_ip, src_ip, dst_port, src_port, TCP_STATE_ESTABLISHED);
+				action = NF_ACCEPT;
+				log_it(log_row, 1, action);
+				return action;
+			}
+			else{
+				action = NF_DROP;
+				log_it(log_row, REASON_UNMATCHING_STATE, action);
+				return action;
+			}
+			break;
+		case TCP_STATE_LISTEN: // this is a server only state
+			if(packet_type == TCP_RST || packet_type == TCP_RST_ACK){
+				// if we receive an RST packet we need to switch to closed states
+				close_connection(src_ip, dst_ip, src_port, dst_port);
+				close_connection(dst_ip, src_ip, dst_port, src_port);
+				action = NF_ACCEPT;
+				log_it(log_row, 1, action);
+				return action;
+			}
+			else if(packet_type == TCP_SYN_ACK){
+				// if the server sends a SYN-ACK packet we need to switch to SYN_RECV state
+				update_connection_state(src_ip, dst_ip, src_port, dst_port, TCP_STATE_SYN_RECV);
+				action = NF_ACCEPT;
+				log_it(log_row, 1, action);
+				return action;
+			}
+			else{
+				action = NF_DROP;
+				log_it(log_row, REASON_UNMATCHING_STATE, action);
+				return action;
+			}
+			break;
+		case TCP_STATE_SYN_RECV: // this is a server only state, should not send any packets in this state
+			if(packet_type == TCP_RST || packet_type == TCP_RST_ACK){
+				// if we receive an RST packet we need to switch to closed states
+				close_connection(src_ip, dst_ip, src_port, dst_port);
+				close_connection(dst_ip, src_ip, dst_port, src_port);
+				action = NF_ACCEPT;
+				log_it(log_row, 1, action);
+				return action;
+			}
+			else{
+				action = NF_DROP;
+				log_it(log_row, REASON_UNMATCHING_STATE, action);
+				return action;
+			}
+			break;
+		case TCP_STATE_ESTABLISHED
 	}
 	
 }
