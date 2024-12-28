@@ -264,7 +264,94 @@ __u8 validate_TCP_packet(struct tcphdr *tcp_header, __be32 src_ip, __be32 dst_ip
 				return action;
 			}
 			break;
-		case TCP_STATE_ESTABLISHED
+		case TCP_STATE_ESTABLISHED:
+			if(packet_type == TCP_RST || packet_type == TCP_RST_ACK){
+				// if we receive an RST packet we need to switch to closed states
+				close_connection(src_ip, dst_ip, src_port, dst_port);
+				close_connection(dst_ip, src_ip, dst_port, src_port);
+				action = NF_ACCEPT;
+				log_it(log_row, 1, action);
+				return action;
+			}
+			else if(packet_type == TCP_FIN || packet_type == TCP_FIN_ACK){
+				// if we receive a FIN packet we need to switch to FIN_WAIT1 state
+				update_connection_state(src_ip, dst_ip, src_port, dst_port, TCP_STATE_FIN_WAIT1);
+				update_connection_state(dst_ip, src_ip, dst_port, src_port, TCP_STATE_CLOSE_WAIT);
+				action = NF_ACCEPT;
+				log_it(log_row, 1, action);
+				return action;
+			}
+			else{
+				action = NF_ACCEPT;
+				log_it(log_row, 1, action);
+				return action;
+			}
+			break;
+		case TCP_STATE_FIN_WAIT1:
+			if(packet_type == TCP_RST || packet_type == TCP_RST_ACK){
+				// if we receive an RST packet we need to switch to closed states
+				close_connection(src_ip, dst_ip, src_port, dst_port);
+				close_connection(dst_ip, src_ip, dst_port, src_port);
+				action = NF_ACCEPT;
+				log_it(log_row, 1, action);
+				return action;
+			}
+			// COMPLETE IF NECESSARY
+			break;
+		case TCP_STATE_FIN_WAIT2:
+			if(packet_type == TCP_RST || packet_type == TCP_RST_ACK){
+				// if we receive an RST packet we need to switch to closed states
+				close_connection(src_ip, dst_ip, src_port, dst_port);
+				close_connection(dst_ip, src_ip, dst_port, src_port);
+				action = NF_ACCEPT;
+				log_it(log_row, 1, action);
+				return action;
+			}
+			else if(packet_type == TCP_ACK){
+				// if we receive an ACK packet we need to switch to closed states
+				close_connection(src_ip, dst_ip, src_port, dst_port);
+				close_connection(dst_ip, src_ip, dst_port, src_port);
+				action = NF_ACCEPT;
+				log_it(log_row, 1, action);
+				return action;
+			}
+			else{
+				action = NF_DROP;
+				log_it(log_row, REASON_UNMATCHING_STATE, action);
+				return action;
+			}
+			break;
+		case TCP_STATE_CLOSE_WAIT:
+			if(packet_type == TCP_RST || packet_type == TCP_RST_ACK){
+				// if we receive an RST packet we need to switch to closed states
+				close_connection(src_ip, dst_ip, src_port, dst_port);
+				close_connection(dst_ip, src_ip, dst_port, src_port);
+				action = NF_ACCEPT;
+				log_it(log_row, 1, action);
+				return action;
+			}
+			else if(packet_type == TCP_FIN || packet_type == TCP_FIN_ACK){
+				// if we receive a FIN packet we need to switch to LAST_ACK state
+				update_connection_state(src_ip, dst_ip, src_port, dst_port, TCP_STATE_LAST_ACK);
+				update_connection_state(dst_ip, src_ip, dst_port, src_port, TCP_STATE_FIN_WAIT2);
+				action = NF_ACCEPT;
+				log_it(log_row, 1, action);
+				return action;
+			}
+			else if(packet_type == TCP_ACK){
+				update_connection_state(dst_ip, src_ip, dst_port, src_port, TCP_STATE_FIN_WAIT2);
+				action = NF_ACCEPT;
+				log_it(log_row, 1, action);
+				return action;
+			}
+			else{
+				action = NF_DROP;
+				log_it(log_row, REASON_UNMATCHING_STATE, action);
+				return action;
+			}
+			break;
+		case TCP_STATE_LAST_ACK:
+		
 	}
 	
 }
