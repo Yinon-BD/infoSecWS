@@ -1,6 +1,38 @@
 #include "PacketFilter.h"
 #include "LogDevice.h"
 
+int check_special_cases(__be32 src_ip, __be32 dst_ip, __be16 src_port, __be16 dst_port, __u8 protocol, struct sk_buff *skb){
+	struct tcphdr *tcp_header;
+	if((src_ip & 0xFF000000) == 0x7F000000 && (dst_ip & 0xFF000000) == 0x7F000000){ /*loopback packet*/
+		return 1;
+	}
+	if(protocol == PROT_OTHER){ /*non TCP/UDP/ICMP packet*/
+		return 1;
+	}
+
+	if(protocol == PROT_TCP){ /*checking for xmas packet*/
+		tcp_header = tcp_hdr(skb);
+		if(tcp_header->urg && tcp_header->fin && tcp_header->psh){
+			return -1;
+		}
+	}
+	return 0;
+}
+
+int stateless_filter(direction_t packet_direction, __be32 packet_src_ip, __be32 packet_dst_ip, __be16 packet_src_port, __be16 packet_dst_port, __u8 packet_protocol, ack_t packet_ack, log_row_t *log_row){
+	rule_t *rule_table;
+	int i;
+	rule_table = get_rule_table();
+	for(i = 0; i < get_rule_table_size(); i++){
+		if(check_for_match(rule_table + i, packet_direction, packet_src_ip, packet_dst_ip, packet_src_port, packet_dst_port, packet_protocol, packet_ack)){
+			log_it(log_row, i, (rule_table + i)->action);
+			return (rule_table + i)->action;
+		}
+	}
+	log_it(log_row, REASON_NO_MATCHING_RULE, NF_DROP);
+	return NF_DROP;
+}
+
 unsigned int filter(void *priv, struct sk_buff *skb, const struct nf_hook_state *state){
 	struct iphdr *ip_header;
 	struct tcphdr *tcp_header;
@@ -33,22 +65,13 @@ unsigned int filter(void *priv, struct sk_buff *skb, const struct nf_hook_state 
 		packet_ack = tcp_header->ack ? ACK_YES : ACK_NO;
 	}
 
-	if(((ip_header->saddr) & 0xFF000000) == 0x7F000000 && ((ip_header->daddr) & 0xFF000000) == 0x7F000001){ /*loopback packet*/
+	int special_case = check_special_cases(packet_src_ip, packet_dst_ip, packet_src_port, packet_dst_port, packet_protocol, skb);
+	if(special_case == 1){
 		return NF_ACCEPT;
 	}
-
-	if(ip_header->protocol == PROT_OTHER){ /*non TCP/UDP/ICMP packet*/
-		return NF_ACCEPT;
-	}
-
-	if(ip_header->protocol == PROT_TCP){
-		tcp_header = tcp_hdr(skb);
-		if(!tcp_header) return NF_ACCEPT;
-		if(tcp_header->urg && tcp_header->fin && tcp_header->psh){ /*XMAS packet*/
-			log_it(&log_row, REASON_XMAS_PACKET, NF_DROP);
-			return NF_DROP;
-		}
-		
+	if(special_case == -1){
+		log_it(&log_row, REASON_XMAS_PACKET, NF_DROP);
+		return NF_DROP;
 	}
 
 	if(is_rule_table_valid() == 0 || get_rule_table_size() == 0){
@@ -56,44 +79,11 @@ unsigned int filter(void *priv, struct sk_buff *skb, const struct nf_hook_state 
 		return NF_ACCEPT;
 	}
 
-	rule_table = get_rule_table();
-	int i;
-	for(i = 0; i < get_rule_table_size(); i++){
-		// we want to add the dynamic connection table logic for a TCP packet
-		if(packet_protocol == PROT_TCP){
-			tcp_header = tcp_hdr(skb);
-			packet_type = get_packet_type(tcp_header);
-			// if the packet is a SYN packet we need to check for a match in the stateless rules first
-			if(packet_type == TCP_SYN && check_for_match(rule_table + i, packet_direction, packet_src_ip, packet_dst_ip, packet_src_port, packet_dst_port, packet_protocol, packet_ack)){
-				log_it(&log_row, i, (rule_table + i)->action);
-				// if the action is ACCEPT we add the connection to the connection table
-				if((rule_table + i)->action == NF_ACCEPT){
-					add_connection(packet_src_ip, packet_dst_ip, packet_src_port, packet_dst_port, TCP_STATE_SYN_SENT);
-					add_connection(packet_dst_ip, packet_src_ip, packet_dst_port, packet_src_port, TCP_STATE_LISTEN);
-				}
-				return (rule_table + i)->action;
-			}
-			// if the packet is a SYN-ACK packet we need to check for a match in the stateful rules
-			// the packet would be accepted if there is a connection in the connection table with flipped src and dst in state TCP_STATE_SYN_SENT
-			else if(packet_type == TCP_SYN_ACK){
-				if(get_connection_state(packet_dst_ip, packet_src_ip, packet_dst_port, packet_src_port) == TCP_STATE_SYN_SENT){
-					log_it(&log_row, 1, NF_ACCEPT); // the reason is not important here, the log is already existent
-					add_connection(packet_src_ip, packet_dst_ip, packet_src_port, packet_dst_port, TCP_STATE_SYN_RECV);
-					return NF_ACCEPT;
-				}
-				log_it(&log_row, REASON_UNMATCHING_STATE, NF_DROP);
-				return NF_DROP;
-			}
-			else if
-		}
-		else if(check_for_match(rule_table + i, packet_direction, packet_src_ip, packet_dst_ip, packet_src_port, packet_dst_port, packet_protocol, packet_ack)){
-			log_it(&log_row, i, (rule_table + i)->action);
-			return (rule_table + i)->action;
-		}
+	if(packet_protocol != PROT_TCP){
+		return stateless_filter(packet_direction, packet_src_ip, packet_dst_ip, packet_src_port, packet_dst_port, packet_protocol, packet_ack, &log_row);
 	}
-	// if no match was found we log the packet and drop it
-	log_it(&log_row, REASON_NO_MATCHING_RULE, NF_DROP);
-	return NF_DROP;
+
+	return validate_TCP_packet(tcp_header, packet_src_ip, packet_dst_ip, packet_src_port, packet_dst_port, packet_direction, &log_row);
 }
 
 void set_packet_direction(struct sk_buff *skb, direction_t *direction, const struct nf_hook_state *state){
@@ -125,7 +115,7 @@ void set_packet_src_and_dst_ports(struct sk_buff *skb, __be16 *src_port, __be16 
 		*src_port = udp_header->source;
 		*dst_port = udp_header->dest;
 	}
-	else{
+	else{ // ICMP Protocol
 		*src_port = 0;
 		*dst_port = 0;
 	}
@@ -181,12 +171,31 @@ tcp_packet_t get_packet_type(struct tcphdr *tcp_header){
 	return TCP_UNKNOWN;
 }
 
-__u8 validate_TCP_packet(struct tcphdr *tcp_header, __be32 src_ip, __be32 dst_ip, __be16 src_port, __be16 dst_port, log_row_t *log_row){ // logic for non SYN packets
+__u8 validate_TCP_packet(struct tcphdr *tcp_header, __be32 src_ip, __be32 dst_ip, __be16 src_port, __be16 dst_port, direction_t packet_direction ,log_row_t *log_row){
 	tcp_state_t state;
 	tcp_packet_t packet_type;
+	struct connection_entry *entry;
 	__u8 action;
 
-	state = get_connection_state(src_ip, dst_ip, src_port, dst_port);
+	entry = find_connection(src_ip, dst_ip, src_port, dst_port);
+	if(entry == NULL){
+		if(packet_type == TCP_SYN){
+			if(stateless_filter(packet_direction, src_ip, dst_ip, src_port, dst_port, PROT_TCP, ACK_NO, log_row) == NF_DROP){
+				return NF_DROP;
+			}
+			add_connection(src_ip, dst_ip, src_port, dst_port, TCP_STATE_INIT);
+			add_connection(dst_ip, src_ip, dst_port, src_port, TCP_STATE_INIT);
+			state = TCP_STATE_INIT;
+		}
+		else{
+			action = NF_DROP;
+			log_it(log_row, REASON_UNMATCHING_STATE, action);
+			return action;
+		}
+	}
+	else{
+		state = entry->connection_data.state;
+	}
 	packet_type = get_packet_type(tcp_header);
 	switch(state){
 		case TCP_STATE_CLOSED:
@@ -351,7 +360,7 @@ __u8 validate_TCP_packet(struct tcphdr *tcp_header, __be32 src_ip, __be32 dst_ip
 			}
 			break;
 		case TCP_STATE_LAST_ACK:
-		
+
 	}
 	
 }

@@ -30,6 +30,7 @@ typedef enum {
 	REASON_XMAS_PACKET           = -4,
 	REASON_ILLEGAL_VALUE         = -6,
 	REASON_UNMATCHING_STATE		 = -7,
+	REASON_MATCHING_STATE	 	 = -8,
 } reason_t;
 	
 

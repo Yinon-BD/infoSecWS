@@ -100,3 +100,15 @@ ssize_t display_connection_table(struct device *dev, struct device_attribute *at
 
     return len;
 }
+
+// Function to find a connection in the connection table, returns a pointer to the connection entry if found, NULL otherwise
+struct connection_entry *find_connection(__be32 src_ip, __be32 dst_ip, __be16 src_port, __be16 dst_port){
+    struct connection_entry *entry;
+    list_for_each_entry(entry, &connection_table, list){
+        if(entry->connection_data.src_ip == src_ip && entry->connection_data.dst_ip == dst_ip
+        && entry->connection_data.src_port == src_port && entry->connection_data.dst_port == dst_port){
+            return entry;
+        }
+    }
+    return NULL;
+}

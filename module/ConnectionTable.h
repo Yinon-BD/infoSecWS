@@ -14,7 +14,8 @@ typedef struct {
 
 // create enum for TCP states
 typedef enum {
-    TCP_STATE_CLOSED = 0,
+    TCP_STATE_INIT = 0, // fake state for the initial connection
+    TCP_STATE_CLOSED,
     TCP_STATE_LISTEN,
     TCP_STATE_SYN_SENT,
     TCP_STATE_SYN_RECV,
@@ -55,5 +56,7 @@ void update_connection_state(__be32 src_ip, __be32 dst_ip, __be16 src_port, __be
 __u8 get_connection_state(__be32 src_ip, __be32 dst_ip, __be16 src_port, __be16 dst_port);
 
 ssize_t display_connection_table(struct device *dev, struct device_attribute *attr, char *buf);
+
+struct connection_entry *find_connection(__be32 src_ip, __be32 dst_ip, __be16 src_port, __be16 dst_port);
 
 #endif // CONNECTION_TABLE_H

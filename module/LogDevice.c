@@ -14,6 +14,13 @@ void set_log_address_and_protocol(log_row_t *log_row, __be32 src_ip, __be32 dst_
     log_row->timestamp = ktime_get_real_seconds();
 }
 
+__u8 compare_logs(log_row_t *log_row, log_row_t *log_row2){
+    if(log_row->src_ip == log_row2->src_ip && log_row->dst_ip == log_row2->dst_ip && log_row->src_port == log_row2->src_port && log_row->dst_port == log_row2->dst_port && log_row->protocol == log_row2->protocol && log_row->action == log_row2->action){
+        return 1;
+    }
+    return 0;
+}
+
 void log_it(log_row_t *log_row, reason_t reason, unsigned char action){
     log_row->reason = reason;
     log_row->action = action;
@@ -22,7 +29,7 @@ void log_it(log_row_t *log_row, reason_t reason, unsigned char action){
     // iterate over the list and check if the log already exists
     struct firewall_log *entry;
     list_for_each_entry(entry, &log_list, list){
-        if(entry->log_data.src_ip == log_row->src_ip && entry->log_data.dst_ip == log_row->dst_ip && entry->log_data.src_port == log_row->src_port && entry->log_data.dst_port == log_row->dst_port && entry->log_data.protocol == log_row->protocol, entry->log_data.action == log_row->action){ // added a check for action because our fw is stateful now
+        if(compare_logs(&entry->log_data, log_row)){ // added a check for action because our fw is stateful now
             entry->log_data.count++;
             entry->log_data.timestamp = log_row->timestamp;
             return;
