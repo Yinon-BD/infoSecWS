@@ -77,7 +77,6 @@ void print_reason(reason_t reason){
 // format of the log entry from buffer: <timestamp> <protocol> <action> <src_ip> <dst_ip> <src_port> <dst_port> <reason> <count>
 int print_log_entry(char log_entry[]){
     log_row_t log_row;
-    printf("for testing.\n%s\n", log_entry);
     sscanf(log_entry, "%lu %hhu %hhu %u %u %hu %hu %d %u", &log_row.timestamp, &log_row.protocol, &log_row.action, &log_row.src_ip, &log_row.dst_ip, &log_row.src_port, &log_row.dst_port, &log_row.reason, &log_row.count);
     print_timestamp(log_row.timestamp);
     printf("		");
