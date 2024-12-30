@@ -3,7 +3,6 @@
 // The connection table will be implemented as a linked list
 static LIST_HEAD(connection_table);
 static __u32 connection_table_len = 0;
-static __u8 passed_len = 0; // flag to indicate if the connection table length was passed
 struct connection_entry *current_connection = NULL; // pointer to the current connection entry when reading from the connection table
 
 // Function to add a new connection to the connection table
@@ -80,7 +79,7 @@ __u8 get_connection_state(__be32 src_ip, __be32 dst_ip, __be16 src_port, __be16 
 }
 
 // Function to pass the connection table to user space
-ssize_t display_connection_table(struct device *dev, struct device_attribute *attr, const char *buf, size_t count){
+ssize_t display_connection_table(struct device *dev, struct device_attribute *attr, char *buf){
     int i = 0;
     ssize_t len = 0;
 

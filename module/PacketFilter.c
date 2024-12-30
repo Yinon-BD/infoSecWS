@@ -408,4 +408,7 @@ __u8 validate_TCP_packet(struct tcphdr *tcp_header, __be32 src_ip, __be32 dst_ip
 			log_it(log_row, REASON_UNMATCHING_STATE, action);
 			return action;
 	}
+	action = NF_DROP;
+	log_it(log_row, REASON_UNMATCHING_STATE, action);
+	return action;
 }
