@@ -178,11 +178,15 @@ __u8 validate_TCP_packet(struct tcphdr *tcp_header, __be32 src_ip, __be32 dst_ip
 	__u8 action;
 
 	entry = find_connection(src_ip, dst_ip, src_port, dst_port);
+	// adding debug print
+	printk(KERN_INFO "I got inside validate_TCP_packet\n");
 	if(entry == NULL){
 		if(packet_type == TCP_SYN){
 			if(stateless_filter(packet_direction, src_ip, dst_ip, src_port, dst_port, PROT_TCP, ACK_NO, log_row) == NF_DROP){
+				printk(KERN_INFO "I didn't pass the statelss filtering\n");
 				return NF_DROP;
 			}
+			printk(KERN_INFO "I passed the stateless filtering\n");
 			add_connection(src_ip, dst_ip, src_port, dst_port, TCP_STATE_INIT);
 			add_connection(dst_ip, src_ip, dst_port, src_port, TCP_STATE_INIT);
 			state = TCP_STATE_INIT;

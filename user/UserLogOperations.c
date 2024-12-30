@@ -67,6 +67,12 @@ void print_reason(reason_t reason){
         case REASON_ILLEGAL_VALUE:
             printf("REASON_ILLEGAL_VALUE");
             break;
+        case REASON_UNMATCHING_STATE:
+            printf("REASON_UNMATCHING_STATE");
+            break;
+        case REASON_MATCHING_STATE:
+            printf("REASON_MATCHING_STATE");
+            break;
         default:
             printf("%d", reason);
             break;
