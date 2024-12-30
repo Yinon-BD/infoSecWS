@@ -201,7 +201,7 @@ __u8 validate_TCP_packet(struct tcphdr *tcp_header, __be32 src_ip, __be32 dst_ip
 		case TCP_STATE_CLOSED:
 			if(packet_type == TCP_RST || packet_type == TCP_RST_ACK){
 				action = NF_ACCEPT;
-				log_it(log_row, 1, action);
+				log_it(log_row, REASON_MATCHING_STATE, action);
 				// we remove the connection from the connection table in both sides
 				remove_connection(src_ip, dst_ip, src_port, dst_port);
 				remove_connection(dst_ip, src_ip, dst_port, src_port);
@@ -213,13 +213,23 @@ __u8 validate_TCP_packet(struct tcphdr *tcp_header, __be32 src_ip, __be32 dst_ip
 				return action;
 			}
 			break;
+		case TCP_STATE_INIT:
+			if(packet_type == TCP_SYN){
+				if(packet_direction == DIRECTION_IN){ // we are not allowing SYN packets from the outside
+					action = NF_DROP;
+					log_it(log_row, REASON_UNMATCHING_STATE, action);
+					return action;
+				}
+				update_connection_state(src_ip, dst_ip, src_port, dst_port, TCP_STATE_SYN_SENT);
+				update_connection_state(dst_ip, src_ip, dst_port, src_port, TCP_STATE_LISTEN);
+			}
 		case TCP_STATE_SYN_SENT: // this is a client only state
 			if(packet_type == TCP_RST || packet_type == TCP_RST_ACK){
 				// if we receive an RST packet we need to switch to closed states
-				close_connection(src_ip, dst_ip, src_port, dst_port);
-				close_connection(dst_ip, src_ip, dst_port, src_port);
+				update_connection_state(src_ip, dst_ip, src_port, dst_port, TCP_STATE_CLOSED);
+				update_connection_state(dst_ip, src_ip, dst_port, src_port, TCP_STATE_CLOSED);
 				action = NF_ACCEPT;
-				log_it(log_row, 1, action);
+				log_it(log_row, REASON_MATCHING_STATE, action);
 				return action;
 			}
 			else if(packet_type == TCP_ACK){
@@ -227,7 +237,7 @@ __u8 validate_TCP_packet(struct tcphdr *tcp_header, __be32 src_ip, __be32 dst_ip
 				update_connection_state(src_ip, dst_ip, src_port, dst_port, TCP_STATE_ESTABLISHED);
 				update_connection_state(dst_ip, src_ip, dst_port, src_port, TCP_STATE_ESTABLISHED);
 				action = NF_ACCEPT;
-				log_it(log_row, 1, action);
+				log_it(log_row, REASON_MATCHING_STATE, action);
 				return action;
 			}
 			else{
@@ -239,17 +249,17 @@ __u8 validate_TCP_packet(struct tcphdr *tcp_header, __be32 src_ip, __be32 dst_ip
 		case TCP_STATE_LISTEN: // this is a server only state
 			if(packet_type == TCP_RST || packet_type == TCP_RST_ACK){
 				// if we receive an RST packet we need to switch to closed states
-				close_connection(src_ip, dst_ip, src_port, dst_port);
-				close_connection(dst_ip, src_ip, dst_port, src_port);
+				update_connection_state(src_ip, dst_ip, src_port, dst_port, TCP_STATE_CLOSED);
+				update_connection_state(dst_ip, src_ip, dst_port, src_port, TCP_STATE_CLOSED);
 				action = NF_ACCEPT;
-				log_it(log_row, 1, action);
+				log_it(log_row, REASON_MATCHING_STATE, action);
 				return action;
 			}
 			else if(packet_type == TCP_SYN_ACK){
 				// if the server sends a SYN-ACK packet we need to switch to SYN_RECV state
 				update_connection_state(src_ip, dst_ip, src_port, dst_port, TCP_STATE_SYN_RECV);
 				action = NF_ACCEPT;
-				log_it(log_row, 1, action);
+				log_it(log_row, REASON_MATCHING_STATE, action);
 				return action;
 			}
 			else{
@@ -261,10 +271,10 @@ __u8 validate_TCP_packet(struct tcphdr *tcp_header, __be32 src_ip, __be32 dst_ip
 		case TCP_STATE_SYN_RECV: // this is a server only state, should not send any packets in this state
 			if(packet_type == TCP_RST || packet_type == TCP_RST_ACK){
 				// if we receive an RST packet we need to switch to closed states
-				close_connection(src_ip, dst_ip, src_port, dst_port);
-				close_connection(dst_ip, src_ip, dst_port, src_port);
+				update_connection_state(src_ip, dst_ip, src_port, dst_port, TCP_STATE_CLOSED);
+				update_connection_state(dst_ip, src_ip, dst_port, src_port, TCP_STATE_CLOSED);
 				action = NF_ACCEPT;
-				log_it(log_row, 1, action);
+				log_it(log_row, REASON_MATCHING_STATE, action);
 				return action;
 			}
 			else{
@@ -276,10 +286,10 @@ __u8 validate_TCP_packet(struct tcphdr *tcp_header, __be32 src_ip, __be32 dst_ip
 		case TCP_STATE_ESTABLISHED:
 			if(packet_type == TCP_RST || packet_type == TCP_RST_ACK){
 				// if we receive an RST packet we need to switch to closed states
-				close_connection(src_ip, dst_ip, src_port, dst_port);
-				close_connection(dst_ip, src_ip, dst_port, src_port);
+				update_connection_state(src_ip, dst_ip, src_port, dst_port, TCP_STATE_CLOSED);
+				update_connection_state(dst_ip, src_ip, dst_port, src_port, TCP_STATE_CLOSED);
 				action = NF_ACCEPT;
-				log_it(log_row, 1, action);
+				log_it(log_row, REASON_MATCHING_STATE, action);
 				return action;
 			}
 			else if(packet_type == TCP_FIN || packet_type == TCP_FIN_ACK){
@@ -287,22 +297,22 @@ __u8 validate_TCP_packet(struct tcphdr *tcp_header, __be32 src_ip, __be32 dst_ip
 				update_connection_state(src_ip, dst_ip, src_port, dst_port, TCP_STATE_FIN_WAIT1);
 				update_connection_state(dst_ip, src_ip, dst_port, src_port, TCP_STATE_CLOSE_WAIT);
 				action = NF_ACCEPT;
-				log_it(log_row, 1, action);
+				log_it(log_row, REASON_MATCHING_STATE, action);
 				return action;
 			}
 			else{
 				action = NF_ACCEPT;
-				log_it(log_row, 1, action);
+				log_it(log_row, REASON_MATCHING_STATE, action);
 				return action;
 			}
 			break;
 		case TCP_STATE_FIN_WAIT1:
 			if(packet_type == TCP_RST || packet_type == TCP_RST_ACK){
 				// if we receive an RST packet we need to switch to closed states
-				close_connection(src_ip, dst_ip, src_port, dst_port);
-				close_connection(dst_ip, src_ip, dst_port, src_port);
+				update_connection_state(src_ip, dst_ip, src_port, dst_port, TCP_STATE_CLOSED);
+				update_connection_state(dst_ip, src_ip, dst_port, src_port, TCP_STATE_CLOSED);
 				action = NF_ACCEPT;
-				log_it(log_row, 1, action);
+				log_it(log_row, REASON_MATCHING_STATE, action);
 				return action;
 			}
 			// COMPLETE IF NECESSARY
@@ -310,18 +320,18 @@ __u8 validate_TCP_packet(struct tcphdr *tcp_header, __be32 src_ip, __be32 dst_ip
 		case TCP_STATE_FIN_WAIT2:
 			if(packet_type == TCP_RST || packet_type == TCP_RST_ACK){
 				// if we receive an RST packet we need to switch to closed states
-				close_connection(src_ip, dst_ip, src_port, dst_port);
-				close_connection(dst_ip, src_ip, dst_port, src_port);
+				update_connection_state(src_ip, dst_ip, src_port, dst_port, TCP_STATE_CLOSED);
+				update_connection_state(dst_ip, src_ip, dst_port, src_port, TCP_STATE_CLOSED);
 				action = NF_ACCEPT;
-				log_it(log_row, 1, action);
+				log_it(log_row, REASON_MATCHING_STATE, action);
 				return action;
 			}
 			else if(packet_type == TCP_ACK){
-				// if we receive an ACK packet we need to switch to closed states
-				close_connection(src_ip, dst_ip, src_port, dst_port);
-				close_connection(dst_ip, src_ip, dst_port, src_port);
+				// if we receive an ACK packet we need to remove the connection from the connection table
+				remove_connection(src_ip, dst_ip, src_port, dst_port);
+				remove_connection(dst_ip, src_ip, dst_port, src_port);
 				action = NF_ACCEPT;
-				log_it(log_row, 1, action);
+				log_it(log_row, REASON_MATCHING_STATE, action);
 				return action;
 			}
 			else{
@@ -333,24 +343,32 @@ __u8 validate_TCP_packet(struct tcphdr *tcp_header, __be32 src_ip, __be32 dst_ip
 		case TCP_STATE_CLOSE_WAIT:
 			if(packet_type == TCP_RST || packet_type == TCP_RST_ACK){
 				// if we receive an RST packet we need to switch to closed states
-				close_connection(src_ip, dst_ip, src_port, dst_port);
-				close_connection(dst_ip, src_ip, dst_port, src_port);
+				update_connection_state(src_ip, dst_ip, src_port, dst_port, TCP_STATE_CLOSED);
+				update_connection_state(dst_ip, src_ip, dst_port, src_port, TCP_STATE_CLOSED);
 				action = NF_ACCEPT;
-				log_it(log_row, 1, action);
+				log_it(log_row, REASON_MATCHING_STATE, action);
 				return action;
 			}
-			else if(packet_type == TCP_FIN || packet_type == TCP_FIN_ACK){
-				// if we receive a FIN packet we need to switch to LAST_ACK state
+			else if(packet_type == TCP_FIN){
+				// if we receive a FIN packet we need to wait for an ACK from both sides
+				update_connection_state(src_ip, dst_ip, src_port, dst_port, TCP_STATE_CLOSING);
+				update_connection_state(dst_ip, src_ip, dst_port, src_port, TCP_STATE_CLOSING);
+				action = NF_ACCEPT;
+				log_it(log_row, REASON_MATCHING_STATE, action);
+				return action;
+			}
+			else if(packet_type == TCP_FIN_ACK){
+				// that means that the other side has already sent a FIN packet and this side acknowledged it and sent a FIN of its own
+				// we need to wait for an ACK from the other side
 				update_connection_state(src_ip, dst_ip, src_port, dst_port, TCP_STATE_LAST_ACK);
 				update_connection_state(dst_ip, src_ip, dst_port, src_port, TCP_STATE_FIN_WAIT2);
-				action = NF_ACCEPT;
-				log_it(log_row, 1, action);
-				return action;
 			}
 			else if(packet_type == TCP_ACK){
-				update_connection_state(dst_ip, src_ip, dst_port, src_port, TCP_STATE_FIN_WAIT2);
+				// that means that the other side has already sent a FIN packet and this side acknowledged it
+				// a FIN packet is still needed from this side
+				// Hence no state change
 				action = NF_ACCEPT;
-				log_it(log_row, 1, action);
+				log_it(log_row, REASON_MATCHING_STATE, action);
 				return action;
 			}
 			else{
@@ -360,7 +378,34 @@ __u8 validate_TCP_packet(struct tcphdr *tcp_header, __be32 src_ip, __be32 dst_ip
 			}
 			break;
 		case TCP_STATE_LAST_ACK:
-
+		// COMPLETE IF NECESSARY
+			break;
+		case TCP_STATE_TIME_WAIT:
+		// COMPLETE IF NECESSARY
+			break;
+		case TCP_STATE_CLOSING: // this states means that both sides sent a FIN packet and we are waiting for an ACK from both sides
+			if(packet_type == TCP_ACK){
+				// this side acknowledged the FIN packet from the other side
+				update_connection_state(src_ip, dst_ip, src_port, dst_port, TCP_STATE_TIME_WAIT);
+				// if the other side already sent an ACK packet we can remove the connection from the connection table
+				// this is abuse of notation because the FSM moves to time_wait state upon receiving an ACK packet and not sending, but it is what it is
+				if(get_connection_state(dst_ip, src_ip, dst_port, src_port) == TCP_STATE_TIME_WAIT){
+					remove_connection(src_ip, dst_ip, src_port, dst_port);
+					remove_connection(dst_ip, src_ip, dst_port, src_port);
+				}
+				action = NF_ACCEPT;
+				log_it(log_row, REASON_MATCHING_STATE, action);
+				return action;
+			}
+			else{
+				action = NF_DROP;
+				log_it(log_row, REASON_UNMATCHING_STATE, action);
+				return action;
+			}
+			break;
+		default:
+			action = NF_DROP;
+			log_it(log_row, REASON_UNMATCHING_STATE, action);
+			return action;
 	}
-	
 }
