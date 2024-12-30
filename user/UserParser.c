@@ -29,6 +29,13 @@ int main(int argc, char** argv) {
             }
             return 0;
         }
+        if(strcmp(argv[1], "show_conns") == 0){
+            if(show_conns() == -1){
+                printf("Error: show_conns failed\n");
+                return 1;
+            }
+            return 0;
+        }
         printf("Invalid arguments\n");
         return 1;
     }

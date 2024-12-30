@@ -5,6 +5,7 @@
 #include "RuleTable.h"
 #include "PacketFilter.h"
 #include "LogDevice.h"
+#include "ConnectionTable.h"
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Yinon Ben David");
@@ -13,10 +14,12 @@ static struct nf_hook_ops *nfho = NULL;
 static int log_device_major = 0;
 static int rules_device_major = 0;
 static int log_reset_device_major = 0;
+static int conns_device_major = 0;
 static struct class* sysfs_class = NULL;
 static struct device* rules_device = NULL;
 static struct device* log_device = NULL;
 static struct device* log_reset_device = NULL;
+static struct device* conns_device = NULL;
 
 // define the log device operations
 static struct file_operations log_fops = {
@@ -34,8 +37,13 @@ static struct file_operations log_reset_fops = {
 	.owner = THIS_MODULE
 };
 
+static struct file_operations conns_fops = {
+	.owner = THIS_MODULE
+};
+
 static DEVICE_ATTR(reset, S_IWUSR | S_IRUGO, NULL, modify_log_device);
 static DEVICE_ATTR(rules, S_IWUSR | S_IRUGO, display_rule_table, modify_rule_table);
+static DEVICE_ATTR(conns, S_IRUGO, display_connection_table, NULL);
 
 static int __init firewall_module(void){
 	// create the netfilter hook
@@ -103,9 +111,32 @@ static int __init firewall_module(void){
 		printk(KERN_ERR "Failed to create rules file.\n");
 		goto rules_file_creation_error;
 	}
+
+	// create the connection table device and sysfs attributes
+	conns_device_major = register_chrdev(0, "conns", &conns_fops);
+	if(conns_device_major < 0){
+		printk(KERN_ERR "Failed to create conns char device.\n");
+		goto conns_device_registration_error;
+	}
+	conns_device = device_create(sysfs_class, NULL, MKDEV(conns_device_major, 0), NULL, DEVICE_NAME_CONNS);
+	if(IS_ERR(conns_device)){
+		printk(KERN_ERR "Failed to create conns sysfs device.\n");
+		goto conns_device_creation_error;
+	}
+
+	if(device_create_file(conns_device, (const struct device_attribute*)&dev_attr_conns.attr) != 0){
+		printk(KERN_ERR "Failed to create conns file.\n");
+		goto conns_file_creation_error;
+	}
 	return 0;
 
 // to avoid code duplication, we will use uconditional jumps to handle the error cases:
+conns_file_creation_error:
+	device_destroy(sysfs_class, MKDEV(conns_device_major, 0));
+conns_device_creation_error:
+	unregister_chrdev(conns_device_major, "conns");
+conns_device_registration_error:
+	device_remove_file(conns_device, (const struct device_attribute*)&dev_attr_conns.attr);
 rules_file_creation_error:
 	device_destroy(sysfs_class, MKDEV(rules_device_major, 0));
 rules_device_creation_error:
@@ -130,7 +161,11 @@ nf_hook_registration_error:
 }
 
 static void __exit firewall_module_exit(void){
-	clear_log(); // clear any exist log entries
+	clear_log(); // clear any existing log entries
+	clear_connection_table(); // clear any existing connection entries
+	device_remove_file(conns_device, (const struct device_attribute*)&dev_attr_conns.attr);
+	device_destroy(sysfs_class, MKDEV(conns_device_major, 0));
+	unregister_chrdev(conns_device_major, "conns");
 	device_remove_file(rules_device, (const struct device_attribute*)&dev_attr_rules.attr);
 	device_destroy(sysfs_class, MKDEV(rules_device_major, 0));
 	unregister_chrdev(rules_device_major, "rules");
