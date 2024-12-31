@@ -107,13 +107,13 @@ void set_packet_src_and_dst_ports(struct sk_buff *skb, __be16 *src_port, __be16 
 
 	if(ip_hdr(skb)->protocol == PROT_TCP){
 		tcp_header = tcp_hdr(skb);
-		*src_port = tcp_header->source;
-		*dst_port = tcp_header->dest;
+		*src_port = ntohs(tcp_header->source);
+		*dst_port = ntohs(tcp_header->dest);
 	}
 	else if(ip_hdr(skb)->protocol == PROT_UDP){
 		udp_header = udp_hdr(skb);
-		*src_port = udp_header->source;
-		*dst_port = udp_header->dest;
+		*src_port = ntohs(udp_header->source);
+		*dst_port = ntohs(udp_header->dest);
 	}
 	else{ // ICMP Protocol
 		*src_port = 0;
