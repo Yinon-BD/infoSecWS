@@ -24,10 +24,9 @@ int stateless_filter(direction_t packet_direction, __be32 packet_src_ip, __be32 
 	int i;
 	rule_table = get_rule_table();
 	// print packet info
-	printk(KERN_INFO "Packet info: src_ip: %u, dst_ip: %u, src_port: %hu, dst_port: %hu, protocol: %hhu, ack: %hhu\n", packet_src_ip, packet_dst_ip, packet_src_port, packet_dst_port, packet_protocol, packet_ack);
-	printk(KERN_INFO "Packet direction: %d\n", packet_direction);
+	// printk(KERN_INFO "Packet info: src_ip: %u, dst_ip: %u, src_port: %hu, dst_port: %hu, protocol: %hhu, ack: %hhu\n", packet_src_ip, packet_dst_ip, packet_src_port, packet_dst_port, packet_protocol, packet_ack);
+	// printk(KERN_INFO "Packet direction: %d\n", packet_direction);
 	for(i = 0; i < get_rule_table_size(); i++){
-		printk(KERN_INFO "Checking rule %d\n", i);
 		if(check_for_match(rule_table + i, packet_direction, packet_src_ip, packet_dst_ip, packet_src_port, packet_dst_port, packet_protocol, packet_ack)){
 			log_it(log_row, i, (rule_table + i)->action);
 			return (rule_table + i)->action;
@@ -126,32 +125,25 @@ void set_packet_src_and_dst_ports(struct sk_buff *skb, __be16 *src_port, __be16 
 }
 
 int check_for_match(rule_t *rule, direction_t packet_direction, __be32 packet_src_ip, __be32 packet_dst_ip, __be16 packet_src_port, __be16 packet_dst_port, __u8 packet_protocol, ack_t packet_ack){
-	if(rule->direction != DIRECTION_ANY && rule->direction != packet_direction){
-		printk(KERN_INFO "Direction doesn't match\n");
+	if(!(rule->direction & packet_direction)){
 		return 0;
 	}
 	if((rule->src_ip & rule->src_prefix_mask) != (packet_src_ip & rule->src_prefix_mask)){
-		printk(KERN_INFO "Source IP doesn't match\n");
 		return 0;
 	}
 	if((rule->dst_ip & rule->dst_prefix_mask) != (packet_dst_ip & rule->dst_prefix_mask)){
-		printk(KERN_INFO "Destination IP doesn't match\n");
 		return 0;
 	}
 	if(rule->src_port != PORT_ANY && (rule->src_port != PORT_ABOVE_1023 || packet_src_port <= 1023) && rule->src_port != packet_src_port){
-		printk(KERN_INFO "Source port doesn't match\n");
 		return 0;
 	}
 	if(rule->dst_port != PORT_ANY && (rule->dst_port != PORT_ABOVE_1023 || packet_dst_port <= 1023) && rule->dst_port != packet_dst_port){
-		printk(KERN_INFO "Destination port doesn't match\n");
 		return 0;
 	}
 	if(rule->protocol != PROT_ANY && rule->protocol != packet_protocol){
-		printk(KERN_INFO "Protocol doesn't match\n");
 		return 0;
 	}
-	if(rule->ack != ACK_ANY && rule->ack != packet_ack){
-		printk(KERN_INFO "ACK doesn't match\n");
+	if(!(rule->ack & packet_ack)){
 		return 0;
 	}
 	return 1;
@@ -189,15 +181,11 @@ __u8 validate_TCP_packet(struct tcphdr *tcp_header, __be32 src_ip, __be32 dst_ip
 	__u8 action;
 
 	entry = find_connection(src_ip, dst_ip, src_port, dst_port);
-	// adding debug print
-	printk(KERN_INFO "I got inside validate_TCP_packet\n");
 	if(entry == NULL){
 		if(packet_type == TCP_SYN){
 			if(stateless_filter(packet_direction, src_ip, dst_ip, src_port, dst_port, PROT_TCP, ACK_NO, log_row) == NF_DROP){
-				printk(KERN_INFO "I didn't pass the statelss filtering\n");
 				return NF_DROP;
 			}
-			printk(KERN_INFO "I passed the stateless filtering\n");
 			add_connection(src_ip, dst_ip, src_port, dst_port, TCP_STATE_INIT);
 			add_connection(dst_ip, src_ip, dst_port, src_port, TCP_STATE_INIT);
 			state = TCP_STATE_INIT;
@@ -237,7 +225,14 @@ __u8 validate_TCP_packet(struct tcphdr *tcp_header, __be32 src_ip, __be32 dst_ip
 				}
 				update_connection_state(src_ip, dst_ip, src_port, dst_port, TCP_STATE_SYN_SENT);
 				update_connection_state(dst_ip, src_ip, dst_port, src_port, TCP_STATE_LISTEN);
+				action = NF_ACCEPT;
+				//should I log? feels redundant...
+				return action;
 			}
+			action = NF_DROP;
+			log_it(log_row, REASON_UNMATCHING_STATE, action);
+			return action;
+			break;
 		case TCP_STATE_SYN_SENT: // this is a client only state
 			if(packet_type == TCP_RST || packet_type == TCP_RST_ACK){
 				// if we receive an RST packet we need to switch to closed states
