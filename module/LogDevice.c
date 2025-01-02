@@ -62,6 +62,8 @@ ssize_t modify_log_device(struct device *dev, struct device_attribute *attr, con
 int open_log_device(struct inode *inode, struct file *file){
     passed_len = 0;
     current_log = NULL;
+    printk(KERN_INFO "Device has been opened: printing logs to kernel.\n");
+    print_logs();
     return 0;
 }
 
@@ -106,7 +108,18 @@ ssize_t read_log_device(struct file *file, char __user *buf, size_t count, loff_
     if(count < LOG_BUFFER_SIZE){
         return -EINVAL;
     }
-
+    // printing the current log for debug purposes
+    printk(KERN_INFO "Passing this Log entry: timestamp: %lu, protocol: %u, action: %hhu, src_ip: %pI4, dst_ip: %pI4, src_port: %hu, dst_port: %hu, reason: %d, count: %u\n",
+            current_log->log_data.timestamp,
+            current_log->log_data.protocol,
+            current_log->log_data.action,
+            &current_log->log_data.src_ip,
+            &current_log->log_data.dst_ip,
+            current_log->log_data.src_port,
+            current_log->log_data.dst_port,
+            current_log->log_data.reason,
+            current_log->log_data.count
+        );
     // format of the log entry: <timestamp> <protocol> <action> <src_ip> <dst_ip> <src_port> <dst_port> <reason> <count>
     len = scnprintf(
         log_buffer, LOG_BUFFER_SIZE, "%lu %u %hhu %u %u %hu %hu %d %u\n",

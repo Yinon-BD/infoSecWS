@@ -88,8 +88,10 @@ unsigned int filter(void *priv, struct sk_buff *skb, const struct nf_hook_state 
 
 	__u8 action = validate_TCP_packet(tcp_header, packet_src_ip, packet_dst_ip, packet_src_port, packet_dst_port, packet_direction, &log_row);
 	// print the logs and connection table for debugging
-	print_connections();
-	print_logs();
+	//print_connections();
+	//print_logs();
+
+	return action;
 }
 
 void set_packet_direction(struct sk_buff *skb, direction_t *direction, const struct nf_hook_state *state){

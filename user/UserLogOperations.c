@@ -126,6 +126,8 @@ int show_log(void){
             fclose(fp);
             return -1;
         }
+        printf("raw form of log number %d\n", i+1 );
+        printf("%s\n", log_entry);
         if(print_log_entry(log_entry) == -1){
             printf("Failed to print log entry\n");
             fclose(fp);

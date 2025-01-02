@@ -3,7 +3,6 @@
 // The connection table will be implemented as a linked list
 static LIST_HEAD(connection_table);
 static __u32 connection_table_len = 0;
-struct connection_entry *current_connection = NULL; // pointer to the current connection entry when reading from the connection table
 
 // Function to add a new connection to the connection table
 void add_connection(__be32 src_ip, __be32 dst_ip, __be16 src_port, __be16 dst_port, __u8 state){
@@ -93,6 +92,9 @@ ssize_t display_connection_table(struct device *dev, struct device_attribute *at
     struct connection_entry *entry;
     list_for_each_entry(entry, &connection_table, list){
         connection_t connection = entry->connection_data;
+        //print current connection for debug puposes
+        printk(KERN_INFO "Connection: src_ip: %pI4, dst_ip: %pI4, src_port: %hu, dst_port: %hu, state: %hhu\n",
+         &connection.src_ip, &connection.dst_ip, connection.src_port, connection.dst_port, connection.state);
         len += scnprintf(buf + len, PAGE_SIZE - len, "%u %u %hu %hu %hhu\n",
          connection.src_ip, connection.dst_ip, connection.src_port, connection.dst_port, connection.state);
     }

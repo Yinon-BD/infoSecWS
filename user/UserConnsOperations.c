@@ -109,6 +109,9 @@ int show_conns(void){
             fclose(fp);
             return -1;
         }
+        // debug printing
+        printf("raw form of connection number %d\n", i+1);
+        printf("%s\n", line);
         if(print_connection(line) == -1){
             printf("Failed to print connection number %d.\n", i);
             fclose(fp);
