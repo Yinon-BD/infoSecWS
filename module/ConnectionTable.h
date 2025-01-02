@@ -59,4 +59,6 @@ ssize_t display_connection_table(struct device *dev, struct device_attribute *at
 
 struct connection_entry *find_connection(__be32 src_ip, __be32 dst_ip, __be16 src_port, __be16 dst_port);
 
+void print_connections(void);
+
 #endif // CONNECTION_TABLE_H

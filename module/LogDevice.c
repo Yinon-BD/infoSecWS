@@ -129,3 +129,22 @@ ssize_t read_log_device(struct file *file, char __user *buf, size_t count, loff_
     *pos += len;
     return len;
 }
+
+// debug function to print the log list to the kernel log
+void print_logs(void){
+    struct firewall_log *entry;
+    printk(KERN_INFO "Log list length: %u\n", log_list_len);
+    list_for_each_entry(entry, &log_list, list){
+        printk(KERN_INFO "Log entry: timestamp: %lu, protocol: %u, action: %hhu, src_ip: %pI4, dst_ip: %pI4, src_port: %hu, dst_port: %hu, reason: %d, count: %u\n",
+            entry->log_data.timestamp,
+            entry->log_data.protocol,
+            entry->log_data.action,
+            &entry->log_data.src_ip,
+            &entry->log_data.dst_ip,
+            entry->log_data.src_port,
+            entry->log_data.dst_port,
+            entry->log_data.reason,
+            entry->log_data.count
+        );
+    }
+}

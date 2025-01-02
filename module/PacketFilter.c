@@ -86,7 +86,10 @@ unsigned int filter(void *priv, struct sk_buff *skb, const struct nf_hook_state 
 		return stateless_filter(packet_direction, packet_src_ip, packet_dst_ip, packet_src_port, packet_dst_port, packet_protocol, packet_ack, &log_row);
 	}
 
-	return validate_TCP_packet(tcp_header, packet_src_ip, packet_dst_ip, packet_src_port, packet_dst_port, packet_direction, &log_row);
+	__u8 action = validate_TCP_packet(tcp_header, packet_src_ip, packet_dst_ip, packet_src_port, packet_dst_port, packet_direction, &log_row);
+	// print the logs and connection table for debugging
+	print_connections();
+	print_logs();
 }
 
 void set_packet_direction(struct sk_buff *skb, direction_t *direction, const struct nf_hook_state *state){
@@ -213,6 +216,8 @@ __u8 validate_TCP_packet(struct tcphdr *tcp_header, __be32 src_ip, __be32 dst_ip
 			else{
 				action = NF_DROP;
 				log_it(log_row, REASON_UNMATCHING_STATE, action);
+				remove_connection(src_ip, dst_ip, src_port, dst_port);
+				remove_connection(dst_ip, src_ip, dst_port, src_port);
 				return action;
 			}
 			break;

@@ -19,5 +19,6 @@ ssize_t modify_log_device(struct device *dev, struct device_attribute *attr, con
 int open_log_device(struct inode *inode, struct file *file);
 ssize_t read_log_device(struct file *file, char __user *buf, size_t count, loff_t *pos);
 void clear_log(void);
+void print_logs(void);
 
 #endif // _LOGDEVICE_H_

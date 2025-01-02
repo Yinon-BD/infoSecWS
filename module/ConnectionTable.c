@@ -111,3 +111,14 @@ struct connection_entry *find_connection(__be32 src_ip, __be32 dst_ip, __be16 sr
     }
     return NULL;
 }
+
+// a debug function that prints the connections to the kernel log
+void print_connections(void){
+    struct connection_entry *entry;
+    printk(KERN_INFO "Connection table length: %u\n", connection_table_len);
+    list_for_each_entry(entry, &connection_table, list){
+        connection_t connection = entry->connection_data;
+        printk(KERN_INFO "Connection: src_ip: %pI4, dst_ip: %pI4, src_port: %hu, dst_port: %hu, state: %hhu\n",
+         &connection.src_ip, &connection.dst_ip, connection.src_port, connection.dst_port, connection.state);
+    }
+}
