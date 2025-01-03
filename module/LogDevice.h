@@ -6,8 +6,6 @@
 #include "fw.h"
 #include "RuleTable.h"
 
-#define LOG_BUFFER_SIZE 128
-
 struct firewall_log {
     struct list_head list;
     log_row_t log_data;

@@ -3,7 +3,30 @@
 static LIST_HEAD(log_list); // Initialize the list
 static __u32 log_list_len = 0;
 static __u8 passed_len = 0; // flag to indicate if the log list length was passed
+static int reached_end = 0; // flag to indicate if we reached the end of the list when passing data
 struct firewall_log *current_log = NULL; // pointer to the current log entry when reading from the log device
+
+void fill_buffer(log_row_t* log_row, char* buf){
+    // format of the log entry: <timestamp> <protocol> <action> <src_ip> <dst_ip> <src_port> <dst_port> <reason> <count>
+    memcpy(buf, &(log_row->timestamp), sizeof(unsigned long));
+    buf += sizeof(unsigned long);
+    memcpy(buf, &(log_row->protocol), sizeof(unsigned char));
+    buf += sizeof(unsigned char);
+    memcpy(buf, &(log_row->action), sizeof(unsigned char));
+    buf += sizeof(unsigned char);
+    memcpy(buf, &(log_row->src_ip), sizeof(__be32));
+    buf += sizeof(__be32);
+    memcpy(buf, &(log_row->dst_ip), sizeof(__be32));
+    buf+= sizeof(__be32);
+    memcpy(buf, &(log_row->src_port), sizeof(__be16));
+    buf += sizeof(__be16);
+    memcpy(buf, &(log_row->dst_port), sizeof(__be16));
+    buf += sizeof(__be16);
+    memcpy(buf, &(log_row->reason), sizeof(reason_t));
+    buf += sizeof(reason_t);
+    memcpy(buf, &(log_row->count), sizeof(unsigned int));
+    buf += sizeof(unsigned int);
+}
 
 void set_log_address_and_protocol(log_row_t *log_row, __be32 src_ip, __be32 dst_ip, __be16 src_port, __be16 dst_port, __u8 protocol){
     log_row->src_ip = src_ip;
@@ -62,6 +85,7 @@ ssize_t modify_log_device(struct device *dev, struct device_attribute *attr, con
 int open_log_device(struct inode *inode, struct file *file){
     passed_len = 0;
     current_log = NULL;
+    reached_end = 0;
     printk(KERN_INFO "Device has been opened: printing logs to kernel.\n");
     print_logs();
     return 0;
@@ -69,9 +93,12 @@ int open_log_device(struct inode *inode, struct file *file){
 
 // "read" function for the log char device
 ssize_t read_log_device(struct file *file, char __user *buf, size_t count, loff_t *pos){
+    
     struct firewall_log *entry;
-    char log_buffer[LOG_BUFFER_SIZE];
+    int log_buffer_size = sizeof(unsigned long) + sizeof(unsigned char) + sizeof(unsigned char) + sizeof(__be32) + sizeof(__be32) + sizeof(__be16) + sizeof(__be16) + sizeof(reason_t) + sizeof(unsigned int);
+    char log_buffer[log_buffer_size];
     ssize_t len = 0;
+
 
     // if the log list length was not passed yet, send it to the user
     if(!passed_len){
@@ -87,7 +114,6 @@ ssize_t read_log_device(struct file *file, char __user *buf, size_t count, loff_
         len += sizeof(__u32);
         count -= sizeof(__u32);
         buf += sizeof(__u32);
-        *pos += sizeof(__u32);
         return len;
     }
     // we already passed the log list length, now we can send the next log entry
@@ -99,13 +125,9 @@ ssize_t read_log_device(struct file *file, char __user *buf, size_t count, loff_
     else{
         current_log = list_next_entry(current_log, list);
     }
-    // if we reached the end of the list, return 0
-    if(current_log == NULL){
-        return 0; // EOF
-    }
 
     // Ensure there is enough space in the buffer to hold the log entry
-    if(count < LOG_BUFFER_SIZE){
+    if(count < log_buffer_size){
         return -EINVAL;
     }
     // printing the current log for debug purposes
@@ -120,26 +142,21 @@ ssize_t read_log_device(struct file *file, char __user *buf, size_t count, loff_
             current_log->log_data.reason,
             current_log->log_data.count
         );
-    // format of the log entry: <timestamp> <protocol> <action> <src_ip> <dst_ip> <src_port> <dst_port> <reason> <count>
-    len = scnprintf(
-        log_buffer, LOG_BUFFER_SIZE, "%lu %u %hhu %u %u %hu %hu %d %u\n",
-        current_log->log_data.timestamp,
-        current_log->log_data.protocol,
-        current_log->log_data.action,
-        current_log->log_data.src_ip,
-        current_log->log_data.dst_ip,
-        current_log->log_data.src_port,
-        current_log->log_data.dst_port,
-        current_log->log_data.reason,
-        current_log->log_data.count
-    );
+    fill_buffer(&current_log->log_data, log_buffer);
+    
+    if(count < log_buffer_size){
+        // not enough space to pass log
+        return len;
+    }
 
     // copy the log entry to the user
-    if(copy_to_user(buf, log_buffer, len) != 0){
+    if(copy_to_user(buf, log_buffer, log_buffer_size) != 0){
         return -EFAULT;
     }
 
-    *pos += len;
+    len += log_buffer_size;
+    count -= log_buffer_size;
+    buf += log_buffer_size;
     return len;
 }
 
