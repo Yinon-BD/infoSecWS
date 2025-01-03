@@ -4,6 +4,18 @@
 static LIST_HEAD(connection_table);
 static __u32 connection_table_len = 0;
 
+void fill_connection_buffer(char *buf, connection_t *connection){
+    memcpy(buf, &(connection->src_ip), sizeof(__be32));
+    buf += sizeof(__be32);
+    memcpy(buf, &(connection->dst_ip), sizeof(__be32));
+    buf += sizeof(__be32);
+    memcpy(buf, &(connection->src_port), sizeof(__be16));
+    buf += sizeof(__be16);
+    memcpy(buf, &(connection->dst_port), sizeof(__be16));
+    buf += sizeof(__be16);
+    memcpy(buf, &(connection->state), sizeof(__u8));
+}
+
 // Function to add a new connection to the connection table
 void add_connection(__be32 src_ip, __be32 dst_ip, __be16 src_port, __be16 dst_port, __u8 state){
     connection_t new_connection;
@@ -81,24 +93,22 @@ __u8 get_connection_state(__be32 src_ip, __be32 dst_ip, __be16 src_port, __be16 
 ssize_t display_connection_table(struct device *dev, struct device_attribute *attr, char *buf){
     int i = 0;
     ssize_t len = 0;
-
-    if(connection_table_len == 0){
-        return scnprintf(buf, PAGE_SIZE, "0\n");
-    }
-
-    // send to the user the number of connections
-    len += scnprintf(buf + len, PAGE_SIZE - len, "%u\n", connection_table_len);
-
     struct connection_entry *entry;
+    connection_t connection;
+    int conn_entry_size = sizeof(__be32) * 2 + sizeof(__be16) * 2 + sizeof(__u8);
+
+    memcpy(buf, &connection_table_len, sizeof(__u32));
+    buf += sizeof(__u32);
+
     list_for_each_entry(entry, &connection_table, list){
-        connection_t connection = entry->connection_data;
+        connection = entry->connection_data;
         //print current connection for debug puposes
         printk(KERN_INFO "Connection: src_ip: %pI4, dst_ip: %pI4, src_port: %hu, dst_port: %hu, state: %hhu\n",
          &connection.src_ip, &connection.dst_ip, connection.src_port, connection.dst_port, connection.state);
-        len += scnprintf(buf + len, PAGE_SIZE - len, "%u %u %hu %hu %hhu\n",
-         connection.src_ip, connection.dst_ip, connection.src_port, connection.dst_port, connection.state);
+        fill_connection_buffer(buf, &connection);
+        buf += conn_entry_size;
     }
-
+    len = sizeof(__u32) + connection_table_len * conn_entry_size;
     return len;
 }
 

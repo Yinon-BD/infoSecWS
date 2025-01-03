@@ -90,6 +90,12 @@ unsigned int filter(void *priv, struct sk_buff *skb, const struct nf_hook_state 
 	// print the logs and connection table for debugging
 	//print_connections();
 	//print_logs();
+	if(action == NF_ACCEPT){
+		printk(KERN_INFO "Packet accepted\n");
+	}
+	else{
+		printk(KERN_INFO "Packet dropped\n");
+	}
 
 	return action;
 }
@@ -205,6 +211,14 @@ __u8 validate_TCP_packet(struct tcphdr *tcp_header, __be32 src_ip, __be32 dst_ip
 		state = entry->connection_data.state;
 	}
 	packet_type = get_packet_type(tcp_header);
+	printk(KERN_INFO "Packet type: %d\n", packet_type);
+	printk(KERN_INFO "Connection state: %d\n", state);
+	if(packet_direction == DIRECTION_OUT){
+		printk(KERN_INFO "client to server\n");
+	}
+	else{
+		printk(KERN_INFO "server to client\n");
+	}
 	switch(state){
 		case TCP_STATE_CLOSED:
 			if(packet_type == TCP_RST || packet_type == TCP_RST_ACK){
