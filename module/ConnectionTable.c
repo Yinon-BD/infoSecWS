@@ -103,8 +103,8 @@ ssize_t display_connection_table(struct device *dev, struct device_attribute *at
     list_for_each_entry(entry, &connection_table, list){
         connection = entry->connection_data;
         //print current connection for debug puposes
-        printk(KERN_INFO "Connection: src_ip: %pI4, dst_ip: %pI4, src_port: %hu, dst_port: %hu, state: %hhu\n",
-         &connection.src_ip, &connection.dst_ip, connection.src_port, connection.dst_port, connection.state);
+        /*printk(KERN_INFO "Connection: src_ip: %pI4, dst_ip: %pI4, src_port: %hu, dst_port: %hu, state: %hhu\n",
+         &connection.src_ip, &connection.dst_ip, connection.src_port, connection.dst_port, connection.state);*/
         fill_connection_buffer(buf, &connection);
         buf += conn_entry_size;
     }

@@ -91,10 +91,10 @@ unsigned int filter(void *priv, struct sk_buff *skb, const struct nf_hook_state 
 	//print_connections();
 	//print_logs();
 	if(action == NF_ACCEPT){
-		printk(KERN_INFO "Packet accepted\n");
+		printk(KERN_INFO "4: Packet accepted\n");
 	}
 	else{
-		printk(KERN_INFO "Packet dropped\n");
+		printk(KERN_INFO "4: Packet dropped\n");
 	}
 
 	return action;
@@ -211,13 +211,13 @@ __u8 validate_TCP_packet(struct tcphdr *tcp_header, __be32 src_ip, __be32 dst_ip
 		state = entry->connection_data.state;
 	}
 	packet_type = get_packet_type(tcp_header);
-	printk(KERN_INFO "Packet type: %d\n", packet_type);
-	printk(KERN_INFO "Connection state: %d\n", state);
+	printk(KERN_INFO "1: Packet type: %d\n", packet_type);
+	printk(KERN_INFO "2: Connection state: %d\n", state);
 	if(packet_direction == DIRECTION_OUT){
-		printk(KERN_INFO "client to server\n");
+		printk(KERN_INFO "3: client to server\n");
 	}
 	else{
-		printk(KERN_INFO "server to client\n");
+		printk(KERN_INFO "3: server to client\n");
 	}
 	switch(state){
 		case TCP_STATE_CLOSED:
@@ -393,6 +393,9 @@ __u8 validate_TCP_packet(struct tcphdr *tcp_header, __be32 src_ip, __be32 dst_ip
 				// we need to wait for an ACK from the other side
 				update_connection_state(src_ip, dst_ip, src_port, dst_port, TCP_STATE_LAST_ACK);
 				update_connection_state(dst_ip, src_ip, dst_port, src_port, TCP_STATE_FIN_WAIT2);
+				action = NF_ACCEPT;
+				log_it(log_row, REASON_MATCHING_STATE, action);
+				return action;
 			}
 			else if(packet_type == TCP_ACK){
 				// that means that the other side has already sent a FIN packet and this side acknowledged it

@@ -86,7 +86,6 @@ int open_log_device(struct inode *inode, struct file *file){
     passed_len = 0;
     current_log = NULL;
     reached_end = 0;
-    printk(KERN_INFO "Device has been opened: printing logs to kernel.\n");
     print_logs();
     return 0;
 }
@@ -130,7 +129,7 @@ ssize_t read_log_device(struct file *file, char __user *buf, size_t count, loff_
     if(count < log_buffer_size){
         return -EINVAL;
     }
-    // printing the current log for debug purposes
+    /*// printing the current log for debug purposes
     printk(KERN_INFO "Passing this Log entry: timestamp: %lu, protocol: %u, action: %hhu, src_ip: %pI4, dst_ip: %pI4, src_port: %hu, dst_port: %hu, reason: %d, count: %u\n",
             current_log->log_data.timestamp,
             current_log->log_data.protocol,
@@ -141,7 +140,7 @@ ssize_t read_log_device(struct file *file, char __user *buf, size_t count, loff_
             current_log->log_data.dst_port,
             current_log->log_data.reason,
             current_log->log_data.count
-        );
+        ); */
     fill_buffer(&current_log->log_data, log_buffer);
     
     if(count < log_buffer_size){

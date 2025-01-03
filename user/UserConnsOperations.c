@@ -6,7 +6,7 @@ int conn_ip_to_string(uint32_t ip, char* str){
     if(inet_ntop(AF_INET, &ip_addr, str, INET_ADDRSTRLEN) == NULL){
         return -1;
     }
-    strcat(str, " ");
+    strcat(str, "\t");
     return 0;
 }
 
@@ -68,7 +68,7 @@ fill_connection(connection_t* conn, char* line){
 
 int print_connection(char* line){
     connection_t conn;
-    char print_buf[256];
+    char print_buf[256] = "";
     fill_connection(&conn, line);
     // add src ip to print buffer
     if(conn_ip_to_string(conn.src_ip, STRING_TAIL(print_buf)) == -1){
@@ -81,9 +81,9 @@ int print_connection(char* line){
         return -1;
     }
     // add src port to print buffer
-    sprintf(STRING_TAIL(print_buf), "%hu ", conn.src_port);
+    sprintf(STRING_TAIL(print_buf), "%hu\t\t", conn.src_port);
     // add dst port to print buffer
-    sprintf(STRING_TAIL(print_buf), "%hu ", conn.dst_port);
+    sprintf(STRING_TAIL(print_buf), "%hu\t\t", conn.dst_port);
     // add state to print buffer
     if(conn_state_to_string(conn.state, STRING_TAIL(print_buf)) == -1){
         printf("Failed to convert state to string\n");
@@ -109,13 +109,13 @@ int show_conns(void){
 
     // if there is more than 0 connections, print the header of the table
     if(num_conns > 0){
-        printf("src_ip\tdst_ip\tsrc_port\tdst_port\tstate\n");
+        printf("src_ip\t\tdst_ip\t\tsrc_port\tdst_port\tstate\n");
     }
     int conn_entry_size = sizeof(uint32_t) * 2 + sizeof(uint16_t) * 2 + sizeof(uint8_t);
     char connection[conn_entry_size];
     // now read the connections
     for(int i = 0; i < num_conns; i++){
-        if(fread(connection, conn_entry_size, 1, fp) == NULL){
+        if(fread(connection, conn_entry_size, 1, fp) != 1){
             perror("Failed to read connection\n");
             fclose(fp);
             return -1;
