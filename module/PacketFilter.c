@@ -43,6 +43,7 @@ unsigned int filter(void *priv, struct sk_buff *skb, const struct nf_hook_state 
 	log_row_t log_row;
 	tcp_packet_t packet_type;
 	rule_t *rule_table;
+	proxy_entry_t *proxy_conn;
 
 	direction_t packet_direction;
 	__be32	packet_src_ip;
@@ -87,9 +88,13 @@ unsigned int filter(void *priv, struct sk_buff *skb, const struct nf_hook_state 
 	}
 
 	__u8 action = validate_TCP_packet(tcp_header, packet_src_ip, packet_dst_ip, packet_src_port, packet_dst_port, packet_direction, &log_row);
-	// print the logs and connection table for debugging
-	//print_connections();
-	//print_logs();
+
+	// we need to check if the packet is a proxy packet
+	proxy_conn = find_proxy_connection(packet_src_ip, packet_src_port, packet_dst_ip, packet_dst_port);
+	if(proxy_conn != NULL){
+		reroute_packet(skb, proxy_conn->proxy_port, packet_direction);
+	}
+
 	if(action == NF_ACCEPT){
 		printk(KERN_INFO "4: Packet accepted\n");
 	}
@@ -196,6 +201,10 @@ __u8 validate_TCP_packet(struct tcphdr *tcp_header, __be32 src_ip, __be32 dst_ip
 		if(packet_type == TCP_SYN){
 			if(stateless_filter(packet_direction, src_ip, dst_ip, src_port, dst_port, PROT_TCP, ACK_NO, log_row) == NF_DROP){
 				return NF_DROP;
+			}
+			// check if the connection needs to be proxied (if the destination port is a HTTP port)
+			if(create_proxy_connection(src_ip, dst_ip, src_port, dst_port, packet_direction)){
+				return NF_ACCEPT;
 			}
 			add_connection(src_ip, dst_ip, src_port, dst_port, TCP_STATE_INIT);
 			add_connection(dst_ip, src_ip, dst_port, src_port, TCP_STATE_INIT);
@@ -436,6 +445,11 @@ __u8 validate_TCP_packet(struct tcphdr *tcp_header, __be32 src_ip, __be32 dst_ip
 				log_it(log_row, REASON_UNMATCHING_STATE, action);
 				return action;
 			}
+			break;
+		case TCP_STATE_PROXY: // we don't inspect TCP FSM rules when the connection is a proxy connection
+			action = NF_ACCEPT;
+			log_it(log_row, REASON_PROXY_CONN, action);
+			return action;
 			break;
 		default:
 			action = NF_DROP;

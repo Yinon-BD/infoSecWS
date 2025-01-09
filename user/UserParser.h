@@ -29,6 +29,7 @@ typedef enum {
 	REASON_ILLEGAL_VALUE         = -6,
 	REASON_UNMATCHING_STATE		 = -7,
 	REASON_MATCHING_STATE		 = -8,
+	REASON_PROXY_CONN			 = -9,
 } reason_t;
 
 

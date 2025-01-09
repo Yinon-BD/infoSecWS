@@ -31,6 +31,7 @@ typedef enum {
 	REASON_ILLEGAL_VALUE         = -6,
 	REASON_UNMATCHING_STATE		 = -7,
 	REASON_MATCHING_STATE	 	 = -8,
+	REASON_PROXY_CONN			 = -9,
 } reason_t;
 	
 
@@ -42,6 +43,8 @@ typedef enum {
 #define LOOPBACK_NET_DEVICE_NAME	"lo"
 #define IN_NET_DEVICE_NAME			"enp0s8"
 #define OUT_NET_DEVICE_NAME			"enp0s9"
+#define FW_IN_LEG 167837955
+#define FW_OUT_LEG 167838211
 
 // auxiliary values, for your convenience
 #define IP_VERSION		(4)

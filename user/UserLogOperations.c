@@ -94,6 +94,9 @@ void print_reason(reason_t reason){
         case REASON_MATCHING_STATE:
             printf("MATCHING_STATE");
             break;
+        case REASON_PROXY_CONN:
+            printf("PROXY_CONN");
+            break;
         default:
             printf("%d", reason);
             break;

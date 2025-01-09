@@ -6,11 +6,13 @@
 #include "PacketFilter.h"
 #include "LogDevice.h"
 #include "ConnectionTable.h"
+#include "ProxyDevice.h"
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Yinon Ben David");
 
-static struct nf_hook_ops *nfho = NULL;
+static struct nf_hook_ops *preRouteHook = NULL;
+static struct nf_hook_ops *localOutHook = NULL;
 static int log_device_major = 0;
 static int rules_device_major = 0;
 static int log_reset_device_major = 0;
@@ -47,17 +49,28 @@ static DEVICE_ATTR(conns, S_IRUGO, display_connection_table, NULL);
 
 static int __init firewall_module(void){
 	// create the netfilter hook
-	nfho = (struct nf_hook_ops*)kcalloc(1, sizeof(struct nf_hook_ops), GFP_KERNEL);
+	preRouteHook = (struct nf_hook_ops*)kcalloc(1, sizeof(struct nf_hook_ops), GFP_KERNEL);
 
-	nfho -> hook = filter;
+	preRouteHook -> hook = filter;
 	// the hooknum should be the pre-routing hook
-	//nfho -> hooknum = NF_INET_PRE_ROUTING;
-	nfho -> hooknum = NF_INET_FORWARD;
-	nfho -> pf = NFPROTO_IPV4;
-	nfho -> priority = NF_IP_PRI_FIRST;
-	if(nf_register_net_hook(&init_net, nfho) != 0){
+	preRouteHook -> hooknum = NF_INET_PRE_ROUTING;
+	preRouteHook -> pf = NFPROTO_IPV4;
+	preRouteHook -> priority = NF_IP_PRI_FIRST;
+	if(nf_register_net_hook(&init_net, preRouteHook) != 0){
 		printk(KERN_ERR "Failed to register nfhook.\n");
 		goto nf_hook_registration_error;
+	}
+
+	//create the local out hook
+	localOutHook = (struct nf_hook_ops*)kcalloc(1, sizeof(struct nf_hook_ops), GFP_KERNEL);
+
+	localOutHook -> hook = localOut;
+	localOutHook -> hooknum = NF_INET_LOCAL_OUT;
+	localOutHook -> pf = NFPROTO_IPV4;
+	localOutHook -> priority = NF_IP_PRI_FIRST;
+	if(nf_register_net_hook(&init_net, localOutHook) != 0){
+		printk(KERN_ERR "Failed to register local out hook.\n");
+		goto local_out_hook_error;
 	}
 
 	// create the log device and sysfs attributes
@@ -156,8 +169,11 @@ reset_log_device_error:
 sysfs_class_creation_error:
 	unregister_chrdev(log_device_major, "fw_log");
 log_device_registration_error:
-	nf_unregister_net_hook(&init_net, nfho);
-	kfree(nfho);
+	nf_unregister_net_hook(&init_net, localOutHook);
+	kfree(localOutHook);
+local_out_hook_error:
+	nf_unregister_net_hook(&init_net, preRouteHook);
+	kfree(preRouteHook);
 nf_hook_registration_error:
 	return -1;
 }
@@ -165,6 +181,7 @@ nf_hook_registration_error:
 static void __exit firewall_module_exit(void){
 	clear_log(); // clear any existing log entries
 	clear_connection_table(); // clear any existing connection entries
+	clear_proxy_connections(); // clear any existing proxy connection entries
 	device_remove_file(conns_device, (const struct device_attribute*)&dev_attr_conns.attr);
 	device_destroy(sysfs_class, MKDEV(conns_device_major, 0));
 	unregister_chrdev(conns_device_major, "conns");
@@ -177,8 +194,10 @@ static void __exit firewall_module_exit(void){
 	unregister_chrdev(log_reset_device_major, "fw_reset_log");
 	class_destroy(sysfs_class);
 	unregister_chrdev(log_device_major, "fw_log");
-	nf_unregister_net_hook(&init_net, nfho);
-	kfree(nfho);
+	nf_unregister_net_hook(&init_net, localOutHook);
+	kfree(localOutHook);
+	nf_unregister_net_hook(&init_net, preRouteHook);
+	kfree(preRouteHook);
 }
 
 module_init(firewall_module);

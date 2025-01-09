@@ -26,6 +26,7 @@ typedef enum {
     TCP_STATE_LAST_ACK,
     TCP_STATE_TIME_WAIT,
     TCP_STATE_CLOSING,
+    TCP_STATE_PROXY, // fake state for proxy connections
 } tcp_state_t;
 
 struct connection_entry {
