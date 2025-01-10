@@ -39,6 +39,7 @@ typedef enum {
 #define DEVICE_NAME_RULES			"rules"
 #define DEVICE_NAME_LOG				"log"
 #define DEVICE_NAME_CONNS			"conns"
+#define DEVICE_NAME_PROXY			"proxy"
 #define CLASS_NAME					"fw"
 #define LOOPBACK_NET_DEVICE_NAME	"lo"
 #define IN_NET_DEVICE_NAME			"enp0s8"

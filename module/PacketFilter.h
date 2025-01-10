@@ -15,5 +15,6 @@ __u8 validate_TCP_packet(struct tcphdr *tcp_header, __be32 src_ip, __be32 dst_ip
 int stateless_filter(direction_t packet_direction, __be32 src_ip, __be32 dst_ip, __be16 src_port, __be16 dst_port, __u8 protocol, ack_t ack, log_row_t *log_row);
 tcp_packet_t get_packet_type(struct tcphdr *tcp_header);
 int check_special_cases(__be32 src_ip, __be32 dst_ip, __be16 src_port, __be16 dst_port, __u8 protocol, struct sk_buff *skb);
+unsigned int localOut(void *priv, struct sk_buff *skb, const struct nf_hook_state *state);
 
 #endif // _FILTER_H_

@@ -57,6 +57,28 @@ void remove_proxy_connection(__be32 client_ip, __be16 client_port, __be32 server
     }
 }
 
+void find_src_ip_and_port(__be32 *src_ip, __be16 *src_port, __be32 dst_ip, __be16 dst_port, __be16 proxy_port, direction_t packet_direction){
+    struct proxy_entry *entry;
+    list_for_each_entry(entry, &proxy_connections, list){
+        if(packet_direction == DIRECTION_OUT){ // source = client, destination = server
+            if(entry->proxy_data.server_ip == dst_ip && entry->proxy_data.server_port == dst_port
+            && entry->proxy_data.proxy_port == proxy_port){
+                *src_ip = entry->proxy_data.client_ip;
+                *src_port = entry->proxy_data.client_port;
+                return;
+            }
+        }
+        else{ // source = server, destination = client
+            if(entry->proxy_data.client_ip == dst_ip && entry->proxy_data.client_port == dst_port
+            && entry->proxy_data.proxy_port == proxy_port){
+                *src_ip = entry->proxy_data.server_ip;
+                *src_port = entry->proxy_data.server_port;
+                return;
+            }
+        }
+    }
+}
+
 void clear_proxy_connections(void){
     struct proxy_entry *entry, *tmp;
     list_for_each_entry_safe(entry, tmp, &proxy_connections, list){
@@ -114,6 +136,25 @@ void reroute_incoming_packet(struct sk_buff *skb, __be16 proxy_port, direction_t
         ip_header->daddr = htonl(FW_OUT_LEG);
         tcp_header->dest = htons(proxy_port);
     }
+    fix_checksums(skb);
+}
+
+void reroute_outgoing_packet(struct sk_buff *skb, __be16 proxy_port, __be16 dst_port, direction_t packet_direction){
+    struct iphdr *ip_header = ip_hdr(skb);
+    struct tcphdr *tcp_header = tcp_hdr(skb);
+    __be32 src_ip;
+    __be16 src_port;
+	__be32 dst_ip = ip_header->daddr;
+	__u8 protocol = ip_header->protocol;
+
+    if(protocol != PROT_TCP){
+        return 0;
+    }
+
+    find_src_ip_and_port(&src_ip, &src_port, dst_ip, dst_port, proxy_port, packet_direction);
+    // set the new source IP and port
+    ip_header->saddr = src_ip;
+    tcp_header->source = htons(src_port);
     fix_checksums(skb);
 }
 

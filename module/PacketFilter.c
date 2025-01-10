@@ -19,6 +19,21 @@ int check_special_cases(__be32 src_ip, __be32 dst_ip, __be16 src_port, __be16 ds
 	return 0;
 }
 
+unsigned int localOut(void *priv, struct sk_buff *skb, const struct nf_hook_state *state){
+	direction_t packet_direction;
+	__be16	packet_src_port;
+	__be16	packet_dst_port;
+
+	if(!skb){
+		return NF_ACCEPT;
+	}
+	set_packet_direction(skb, &packet_direction, state);
+	set_packet_src_and_dst_ports(skb, &packet_src_port, &packet_dst_port);
+
+	reroute_outgoing_packet(skb, packet_src_port, packet_dst_port, packet_direction);
+	return NF_ACCEPT;
+}
+
 int stateless_filter(direction_t packet_direction, __be32 packet_src_ip, __be32 packet_dst_ip, __be16 packet_src_port, __be16 packet_dst_port, __u8 packet_protocol, ack_t packet_ack, log_row_t *log_row){
 	rule_t *rule_table;
 	int i;
