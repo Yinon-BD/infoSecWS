@@ -58,7 +58,7 @@ unsigned int filter(void *priv, struct sk_buff *skb, const struct nf_hook_state 
 	log_row_t log_row;
 	tcp_packet_t packet_type;
 	rule_t *rule_table;
-	proxy_entry_t *proxy_conn;
+	proxy_t *proxy_conn;
 
 	direction_t packet_direction;
 	__be32	packet_src_ip;
@@ -107,7 +107,7 @@ unsigned int filter(void *priv, struct sk_buff *skb, const struct nf_hook_state 
 	// we need to check if the packet is a proxy packet
 	proxy_conn = find_proxy_connection(packet_src_ip, packet_src_port, packet_dst_ip, packet_dst_port);
 	if(proxy_conn != NULL){
-		reroute_packet(skb, proxy_conn->proxy_port, packet_direction);
+		reroute_incoming_packet(skb, proxy_conn->proxy_port, packet_direction);
 	}
 
 	if(action == NF_ACCEPT){
