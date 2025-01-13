@@ -11,6 +11,7 @@
 #include <linux/tcp.h>
 #include <linux/udp.h>
 #include <linux/time.h>
+#include <net/tcp.h>
 
 
 // the protocols we will work with

@@ -99,7 +99,7 @@ proxy_t* find_proxy_connection(__be32 client_ip, __be16 client_port, __be32 serv
     return NULL;
 }
 
-void fix_checksums(skb){ // this function corrects the TCP and IP's checksum fields after modifying the packet
+void fix_checksums(struct sk_buff *skb){ // this function corrects the TCP and IP's checksum fields after modifying the packet
     struct iphdr *ip_header = ip_hdr(skb);
     struct tcphdr *tcp_header = tcp_hdr(skb);
 
@@ -183,7 +183,7 @@ ssize_t display_proxy_table(struct device *dev, struct device_attribute *attr, c
 
     list_for_each_entry(entry, &proxy_connections, list){
         proxy = entry->proxy_data;
-        fill_proxy_buffer(buf, &connection);
+        fill_proxy_buffer(buf, &proxy);
         buf += proxy_entry_size;
     }
     len = sizeof(__u32) + proxy_connections_len * proxy_entry_size;
