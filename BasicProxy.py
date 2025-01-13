@@ -119,10 +119,13 @@ class BasicProxy(threading.Thread):
             return None  # No matching entry found
 
         except FileNotFoundError:
-            print(f"Device file {self.DEVICE_PATH} not found.")
+            # print(f"Device file {self.DEVICE_PATH} not found.")
+            # different print command for python version older than 3.6
+            print("Device file {} not found.".format(self.DEVICE_PATH))
             return None
         except Exception as e:
-            print(f"An error occurred: {e}")
+            # print(f"An error occurred: {e}")
+            print("An error occurred: {}".format(e))
             return None
 
     def send_proxy_request(self, client_ip, client_port, proxy_port):
@@ -149,12 +152,16 @@ class BasicProxy(threading.Thread):
             with open(self.DEVICE_PATH, "wb") as device:
                 device.write(buffer)
             
-            print(f"Successfully sent: {client_ip}:{client_port}:{proxy_port}")
+            # print(f"Successfully sent: {client_ip}:{client_port}:{proxy_port}")
+            print("Successfully sent: {}:{}:{}".format(client_ip, client_port, proxy_port))
         
         except FileNotFoundError:
-            print(f"Device file {self.DEVICE_PATH} not found.")
+            # print(f"Device file {self.DEVICE_PATH} not found.")
+            # different print command for python version older than 3.6
+            print("Device file {} not found.".format(self.DEVICE_PATH))
         except Exception as e:
-            print(f"An error occurred: {e}")
+            # print(f"An error occurred: {e}")
+            print("An error occurred: {}".format(e))
 
     
     def setup(self):
