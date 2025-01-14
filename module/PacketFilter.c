@@ -27,6 +27,7 @@ unsigned int localOut(void *priv, struct sk_buff *skb, const struct nf_hook_stat
 	if(!skb){
 		return NF_ACCEPT;
 	}
+	printk(KERN_INFO "I'm in the local-out hook!");
 	set_packet_direction(skb, &packet_direction, state);
 	if(!packet_direction){
 		return NF_ACCEPT;
@@ -245,6 +246,7 @@ __u8 validate_TCP_packet(struct tcphdr *tcp_header, __be32 src_ip, __be32 dst_ip
 			}
 			// check if the connection needs to be proxied (if the destination port is a HTTP port)
 			if(create_proxy_connection(src_ip, dst_ip, src_port, dst_port, packet_direction)){
+				printk(KERN_INFO "I gonna proxy a new connection!");
 				return NF_ACCEPT;
 			}
 			add_connection(src_ip, dst_ip, src_port, dst_port, TCP_STATE_INIT);

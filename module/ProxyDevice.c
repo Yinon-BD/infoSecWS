@@ -69,8 +69,7 @@ void find_src_ip_and_port(__be32 *src_ip, __be16 *src_port, __be32 dst_ip, __be1
             }
         }
         else{ // source = server, destination = client
-            if(entry->proxy_data.client_ip == dst_ip && entry->proxy_data.client_port == dst_port
-            && entry->proxy_data.proxy_port == proxy_port){
+            if(entry->proxy_data.client_ip == dst_ip && entry->proxy_data.client_port == dst_port){
                 *src_ip = entry->proxy_data.server_ip;
                 *src_port = entry->proxy_data.server_port;
                 return;
@@ -124,10 +123,10 @@ void reroute_incoming_packet(struct sk_buff *skb, __be16 proxy_port, direction_t
     __be16 dst_port = tcp_header->dest;
 
     if(packet_direction == DIRECTION_OUT){ // client to server, we need to change the destination IP to fw in leg and port based on original dst port
-        if(dst_port == 80){
+        if(dst_port == htons(80)){
             tcp_header->dest = htons(800);
         }
-        else if(dst_port == 21){
+        else if(dst_port == htons(21)){
             tcp_header->dest = htons(210);
         }
         ip_header->daddr = htonl(FW_IN_LEG);
@@ -137,6 +136,8 @@ void reroute_incoming_packet(struct sk_buff *skb, __be16 proxy_port, direction_t
         tcp_header->dest = htons(proxy_port);
     }
     fix_checksums(skb);
+    printk(KERN_INFO "Spoofed incoming packet data:\n");
+    printk(KERN_INFO "IP dest: %pI4 Port dest: %hu \n", &(ip_header->daddr), ntohs(tcp_header->dest));
 }
 
 void reroute_outgoing_packet(struct sk_buff *skb, __be16 proxy_port, __be16 dst_port, direction_t packet_direction){
@@ -151,11 +152,16 @@ void reroute_outgoing_packet(struct sk_buff *skb, __be16 proxy_port, __be16 dst_
         return 0;
     }
 
+    printk(KERN_INFO "sending packet to: IP - %pI4 Port - %hu\n", &dst_ip, dst_port);
+    printk(KERN_INFO "source port: %hu\n", proxy_port);
+
     find_src_ip_and_port(&src_ip, &src_port, dst_ip, dst_port, proxy_port, packet_direction);
     // set the new source IP and port
     ip_header->saddr = src_ip;
     tcp_header->source = htons(src_port);
     fix_checksums(skb);
+    printk(KERN_INFO "Spoofed outgoing packet data:\n");
+    printk(KERN_INFO "IP src: %pI4 Port src: %hu \n", &(ip_header->saddr), ntohs(tcp_header->dest));
 }
 
 void fill_proxy_buffer(char *buf, proxy_t *proxy){

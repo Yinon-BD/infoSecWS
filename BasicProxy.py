@@ -44,7 +44,7 @@ class BasicProxy(threading.Thread):
         self.setup()
 
         # After the setup, we have the server's IP and port, and we can start the communication with the server.
-        self.ssocket.connect((self.server_ip, self.server_port))
+        self.server_socket.connect((self.server_ip, self.server_port))
 
         # We then start the client and server threads.
         # each of them will be responsible for the communication with the client and server respectively.
@@ -102,6 +102,8 @@ class BasicProxy(threading.Thread):
                 # Read the buffer
                 data = device.read()
             
+            print("Data length: {}".format(len(data)))
+            print("Data content: {}".format(data))
             # Read the number of proxy entries
             num_entries = struct.unpack("!I", data[:self.UINT32_SIZE])[0]
             offset = self.UINT32_SIZE
