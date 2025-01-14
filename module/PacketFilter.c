@@ -102,12 +102,12 @@ unsigned int filter(void *priv, struct sk_buff *skb, const struct nf_hook_state 
 
 void set_packet_direction(struct sk_buff *skb, direction_t *direction, const struct nf_hook_state *state){
 	char *in_device_name = state->in->name;
-	char *out_device_name = state->out->name;
+	//char *out_device_name = state->out->name;
 
-	if(strcmp(in_device_name, IN_NET_DEVICE_NAME) == 0 && strcmp(out_device_name, OUT_NET_DEVICE_NAME) == 0){
+	if(strcmp(in_device_name, IN_NET_DEVICE_NAME) == 0){
 		*direction = DIRECTION_OUT;
 	}
-	else if(strcmp(in_device_name, OUT_NET_DEVICE_NAME) == 0 && strcmp(out_device_name, IN_NET_DEVICE_NAME) == 0){
+	else if(strcmp(in_device_name, OUT_NET_DEVICE_NAME) == 0){
 		*direction = DIRECTION_IN;
 	}
 	else{

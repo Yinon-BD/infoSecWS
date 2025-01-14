@@ -50,7 +50,7 @@ static int __init firewall_module(void){
 	nfho = (struct nf_hook_ops*)kcalloc(1, sizeof(struct nf_hook_ops), GFP_KERNEL);
 
 	nfho -> hook = filter;
-	nfho -> hooknum = NF_INET_FORWARD;
+	nfho -> hooknum = NF_INET_PRE_ROUTING;
 	nfho -> pf = NFPROTO_IPV4;
 	nfho -> priority = NF_IP_PRI_FIRST;
 	if(nf_register_net_hook(&init_net, nfho) != 0){

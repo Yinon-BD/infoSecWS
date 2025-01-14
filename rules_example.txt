@@ -7,3 +7,4 @@ MYhttpc2s out 10.1.1.1/24 10.1.2.2/24 TCP any 8080 any accept
 MYhttps2c in 10.1.2.2/24 10.1.1.1/24 TCP 8080 any yes accept
 httpc2s out 10.1.1.1/24 10.1.2.2/24 TCP any 80 any accept
 https2c in 10.1.2.2/24 10.1.1.1/24 TCP 80 any yes accept
+ping any any any ICMP any any any accept
