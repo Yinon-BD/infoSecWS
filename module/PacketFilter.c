@@ -111,8 +111,6 @@ unsigned int filter(void *priv, struct sk_buff *skb, const struct nf_hook_state 
 	__u8 action = validate_TCP_packet(tcp_header, packet_src_ip, packet_dst_ip, packet_src_port, packet_dst_port, packet_direction, &log_row);
 
 
-	//check:
-	return action;
 	// we need to check if the packet is a proxy packet
 	proxy_conn = find_proxy_connection(packet_src_ip, packet_src_port, packet_dst_ip, packet_dst_port);
 	if(proxy_conn != NULL){
@@ -130,18 +128,37 @@ unsigned int filter(void *priv, struct sk_buff *skb, const struct nf_hook_state 
 }
 
 void set_packet_direction(struct sk_buff *skb, direction_t *direction, const struct nf_hook_state *state){
-	char *in_device_name = state->in->name;
-	char *out_device_name = state->out->name;
+	char *in_device_name = NULL;
+	char *out_device_name = NULL;
+	if(state->in) {
+		in_device_name = state->in->name;
+	}
+	if(state->out) {
+		out_device_name = state->out->name;
+	}
 
-	if(strcmp(in_device_name, IN_NET_DEVICE_NAME) == 0 && strcmp(out_device_name, OUT_NET_DEVICE_NAME) == 0){
+	if(in_device_name) // we are in the pre_routing hook
+	{
+		if(strcmp(in_device_name, IN_NET_DEVICE_NAME) == 0){
 		*direction = DIRECTION_OUT;
+		}
+		else if(strcmp(in_device_name, OUT_NET_DEVICE_NAME) == 0){
+			*direction = DIRECTION_IN;
+		}
+		return;
 	}
-	else if(strcmp(in_device_name, OUT_NET_DEVICE_NAME) == 0 && strcmp(out_device_name, IN_NET_DEVICE_NAME) == 0){
-		*direction = DIRECTION_IN;
+	if(out_device_name) // we are in the local_out hook
+	{
+		if(strcmp(out_device_name, OUT_NET_DEVICE_NAME) == 0){
+		*direction = DIRECTION_OUT;
+		}
+		else if(strcmp(out_device_name, IN_NET_DEVICE_NAME) == 0){
+			*direction = DIRECTION_IN;
+		}
+		return;
 	}
-	else{
-		*direction = 0;
-	}
+	
+	*direction = 0;
 }
 
 void set_packet_src_and_dst_ports(struct sk_buff *skb, __be16 *src_port, __be16 *dst_port){
@@ -227,9 +244,9 @@ __u8 validate_TCP_packet(struct tcphdr *tcp_header, __be32 src_ip, __be32 dst_ip
 				return NF_DROP;
 			}
 			// check if the connection needs to be proxied (if the destination port is a HTTP port)
-			//if(create_proxy_connection(src_ip, dst_ip, src_port, dst_port, packet_direction)){
-			//	return NF_ACCEPT;
-			//}
+			if(create_proxy_connection(src_ip, dst_ip, src_port, dst_port, packet_direction)){
+				return NF_ACCEPT;
+			}
 			add_connection(src_ip, dst_ip, src_port, dst_port, TCP_STATE_INIT);
 			add_connection(dst_ip, src_ip, dst_port, src_port, TCP_STATE_INIT);
 			state = TCP_STATE_INIT;
