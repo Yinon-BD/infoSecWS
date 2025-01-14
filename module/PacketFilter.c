@@ -28,6 +28,9 @@ unsigned int localOut(void *priv, struct sk_buff *skb, const struct nf_hook_stat
 		return NF_ACCEPT;
 	}
 	set_packet_direction(skb, &packet_direction, state);
+	if(!packet_direction){
+		return NF_ACCEPT;
+	}
 	set_packet_src_and_dst_ports(skb, &packet_src_port, &packet_dst_port);
 
 	reroute_outgoing_packet(skb, packet_src_port, packet_dst_port, packet_direction);
@@ -73,6 +76,9 @@ unsigned int filter(void *priv, struct sk_buff *skb, const struct nf_hook_state 
 	}
 
 	set_packet_direction(skb, &packet_direction, state);
+	if(!packet_direction){  //to avoid undefined behaviour
+		return NF_ACCEPT;
+	}
 	ip_header = ip_hdr(skb);
 	packet_src_ip = ip_header->saddr;
 	packet_dst_ip = ip_header->daddr;
@@ -104,6 +110,9 @@ unsigned int filter(void *priv, struct sk_buff *skb, const struct nf_hook_state 
 
 	__u8 action = validate_TCP_packet(tcp_header, packet_src_ip, packet_dst_ip, packet_src_port, packet_dst_port, packet_direction, &log_row);
 
+
+	//check:
+	return action;
 	// we need to check if the packet is a proxy packet
 	proxy_conn = find_proxy_connection(packet_src_ip, packet_src_port, packet_dst_ip, packet_dst_port);
 	if(proxy_conn != NULL){
@@ -218,9 +227,9 @@ __u8 validate_TCP_packet(struct tcphdr *tcp_header, __be32 src_ip, __be32 dst_ip
 				return NF_DROP;
 			}
 			// check if the connection needs to be proxied (if the destination port is a HTTP port)
-			if(create_proxy_connection(src_ip, dst_ip, src_port, dst_port, packet_direction)){
-				return NF_ACCEPT;
-			}
+			//if(create_proxy_connection(src_ip, dst_ip, src_port, dst_port, packet_direction)){
+			//	return NF_ACCEPT;
+			//}
 			add_connection(src_ip, dst_ip, src_port, dst_port, TCP_STATE_INIT);
 			add_connection(dst_ip, src_ip, dst_port, src_port, TCP_STATE_INIT);
 			state = TCP_STATE_INIT;
