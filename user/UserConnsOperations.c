@@ -48,6 +48,9 @@ int conn_state_to_string(uint8_t state, char* str){
         case TCP_STATE_CLOSING:
             strcpy(str, "CLOSING");
             break;
+        case TCP_STATE_PROXY:
+            strcpy(str, "PROXY");
+            break;
         default:
             return -1;
     }

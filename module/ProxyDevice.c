@@ -220,10 +220,14 @@ ssize_t store_proxy_device(struct device *dev, struct device_attribute *attr, co
 
     extract_address_from_buffer(buf, &client_ip, &client_port, &proxy_port);
 
+    printk(KERN_INFO "New info from proxy server\n");
+    printk(KERN_INFO "cIP: %pI4 cPort: %hu proxy: %hu\n", &client_ip, client_port, proxy_port);
+
     list_for_each_entry(entry, &proxy_connections, list){
         proxy = entry->proxy_data;
         if(proxy.client_ip == client_ip && proxy.client_port == client_port){
             entry->proxy_data.proxy_port = proxy_port;
+            printk(KERN_INFO "proxy port updated successfuly!\n");
             return count;
         }
     }

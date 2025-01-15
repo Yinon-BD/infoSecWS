@@ -44,7 +44,9 @@ class BasicProxy(threading.Thread):
         self.setup()
 
         # After the setup, we have the server's IP and port, and we can start the communication with the server.
+        print("connecting to {}:{}".format(self.server_ip, self.server_port))
         self.server_socket.connect((self.server_ip, self.server_port))
+        print("Successfully connected to server!")
 
         # We then start the client and server threads.
         # each of them will be responsible for the communication with the client and server respectively.
@@ -80,7 +82,17 @@ class BasicProxy(threading.Thread):
 
 
     def parse_proxy_entry(self, buffer):
-        client_ip, client_port, server_ip, server_port, proxy_port = struct.unpack("!IHIHH", buffer)
+        #ip_format = "!4sH4sH"
+        #client_ip, client_port, server_ip, server_port = struct.unpack(ip_format, buffer[:12])
+        client_ip = struct.unpack("!I", buffer[:4])[0]
+        client_port = struct.unpack("H", buffer[4:6])[0]
+        server_ip = struct.unpack("!I", buffer[6:10])[0]
+        server_port, proxy_port = struct.unpack("HH", buffer[10:])
+        print(socket.inet_ntoa(struct.pack("!I", client_ip)))
+        print(client_port)
+        print(socket.inet_ntoa(struct.pack("!I", server_ip)))
+        print(server_port)
+        print(proxy_port)
         return {
             "client_ip": socket.inet_ntoa(struct.pack("!I", client_ip)),
             "client_port": client_port,
@@ -105,11 +117,13 @@ class BasicProxy(threading.Thread):
             print("Data length: {}".format(len(data)))
             print("Data content: {}".format(data))
             # Read the number of proxy entries
-            num_entries = struct.unpack("!I", data[:self.UINT32_SIZE])[0]
+            num_entries = struct.unpack("I", data[:self.UINT32_SIZE])[0]
+            print("I didn't get thrown out, {} entries".format(num_entries))
             offset = self.UINT32_SIZE
             
             # Iterate over each proxy entry
-            for _ in range(num_entries):
+            for i in range(num_entries):
+                print(i)
                 entry_buffer = data[offset:offset + self.PROXY_ENTRY_SIZE]
                 entry = self.parse_proxy_entry(entry_buffer)
                 offset += self.PROXY_ENTRY_SIZE

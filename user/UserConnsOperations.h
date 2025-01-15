@@ -31,6 +31,7 @@ typedef enum {
     TCP_STATE_LAST_ACK,
     TCP_STATE_TIME_WAIT,
     TCP_STATE_CLOSING,
+    TCP_STATE_PROXY
 } tcp_state_t;
 
 #endif // USR_CONN_H
