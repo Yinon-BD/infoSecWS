@@ -206,6 +206,16 @@ void extract_address_from_buffer(const char *buf, __be32 *client_ip, __be16 *cli
     memcpy(proxy_port, buf, sizeof(__be16));
 }
 
+void extract_connection_from_buffer(const char *buf, __be32 *client_ip, __be16 *client_port, __be32 *server_ip, __be16 *server_port){
+    memcpy(client_ip, buf, sizeof(__be32));
+    buf += sizeof(__be32);
+    memcpy(client_port, buf, sizeof(__be16));
+    buf += sizeof(__be16);
+    memcpy(server_ip, buf, sizeof(__be32));
+    buf += sizeof(__be32);
+    memcpy(server_port, buf, sizeof(__be16));
+}
+
 void find_server_address(__be32 client_ip, __be16 client_port, __be32 *server_ip, __be16 *server_port){
     struct proxy_entry *entry;
     list_for_each_entry(entry, &proxy_connections, list){
