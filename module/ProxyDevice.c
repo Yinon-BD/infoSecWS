@@ -43,12 +43,12 @@ void add_proxy_connection(__be32 client_ip, __be16 client_port, __be32 server_ip
     proxy_connections_len++;
 }
 
-void remove_proxy_connection(__be32 client_ip, __be16 client_port, __be32 server_ip, __be16 server_port, __be16 proxy_port){
+void remove_proxy_connection(__be32 client_ip, __be16 client_port, __be32 server_ip, __be16 server_port){
     struct proxy_entry *entry, *tmp;
     list_for_each_entry_safe(entry, tmp, &proxy_connections, list){
         if(entry->proxy_data.client_ip == client_ip && entry->proxy_data.client_port == client_port
-        && entry->proxy_data.server_ip == server_ip && entry->proxy_data.server_port == server_port
-        && entry->proxy_data.proxy_port == proxy_port){
+        && entry->proxy_data.server_ip == server_ip && entry->proxy_data.server_port == server_port)
+        {
             list_del(&entry->list);
             kfree(entry);
             proxy_connections_len--;
@@ -206,11 +206,23 @@ void extract_address_from_buffer(const char *buf, __be32 *client_ip, __be16 *cli
     memcpy(proxy_port, buf, sizeof(__be16));
 }
 
+void find_server_address(__be32 client_ip, __be16 client_port, __be32 *server_ip, __be16 *server_port){
+    struct proxy_entry *entry;
+    list_for_each_entry(entry, &proxy_connections, list){
+        if(entry->proxy_data.client_ip == client_ip && entry->proxy_data.client_port == client_port){
+            *server_ip = entry->proxy_data.server_ip;
+            *server_port = entry->proxy_data.server_port;
+            return;
+        }
+    }
+}
+
 // Store function for the proxy char device
 // The user will pass the proxy connection in the following format:
 // <client_ip> <client_port> <proxy_port>
 // the function will look for the client_ip and client_port in the proxy connections list
 // if it finds a match, it will update the proxy_port
+// if the proxy port is 0, it means the connection is terminated and we need to remove it from the conns and proxy conns lists
 
 ssize_t store_proxy_device(struct device *dev, struct device_attribute *attr, const char *buf, size_t count){
     __be32 buffer_size = sizeof(__be32) + sizeof(__be16) * 2;
@@ -224,6 +236,18 @@ ssize_t store_proxy_device(struct device *dev, struct device_attribute *attr, co
 
     printk(KERN_INFO "New info from proxy server\n");
     printk(KERN_INFO "cIP: %pI4 cPort: %hu proxy: %hu\n", &client_ip, client_port, proxy_port);
+
+    if(proxy_port == 0){
+        // we need to find the matching server address and remove the connection
+        __be32 server_ip;
+        __be16 server_port;
+        find_server_address(client_ip, client_port, &server_ip, &server_port);
+        remove_connection(client_ip, server_ip, client_port, server_port);
+        remove_connection(server_ip, client_ip, server_port, client_port);
+        remove_proxy_connection(client_ip, client_port, server_ip, server_port);
+        printk(KERN_INFO "proxy connection removed successfuly!\n");
+        return count;
+    }
 
     list_for_each_entry(entry, &proxy_connections, list){
         proxy = entry->proxy_data;

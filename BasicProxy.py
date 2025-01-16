@@ -61,6 +61,8 @@ class BasicProxy(threading.Thread):
         # After the threads are done, we need to close the sockets.
         self.client_connection.join()
         self.server_connection.join()
+        # We also need to notify the firewall that the connection is done.
+        self.send_proxy_request(self.client_ip, self.client_port, 0)
         self.client_socket.close()
         self.server_socket.close()
 
