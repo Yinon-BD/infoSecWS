@@ -116,6 +116,8 @@ unsigned int filter(void *priv, struct sk_buff *skb, const struct nf_hook_state 
 		return stateless_filter(packet_direction, packet_src_ip, packet_dst_ip, packet_src_port, packet_dst_port, packet_protocol, packet_ack, &log_row);
 	}
 
+
+
 	__u8 action = validate_TCP_packet(tcp_header, packet_src_ip, packet_dst_ip, packet_src_port, packet_dst_port, packet_direction, &log_row);
 
 
@@ -305,6 +307,14 @@ __u8 validate_TCP_packet(struct tcphdr *tcp_header, __be32 src_ip, __be32 dst_ip
 			break;
 		case TCP_STATE_INIT:
 			if(packet_type == TCP_SYN){
+				// we need to escape data ftp connection:
+				if(src_port == 20) {
+					action = NF_ACCEPT;
+					log_it(log_row, REASON_MATCHING_STATE, action);
+					update_connection_state(src_ip, dst_ip, src_port, dst_port, TCP_STATE_SYN_SENT);
+					update_connection_state(dst_ip, src_ip, dst_port, src_port, TCP_STATE_LISTEN);
+					return action;
+				}
 				if(packet_direction == DIRECTION_IN){ // we are not allowing SYN packets from the outside
 					action = NF_DROP;
 					log_it(log_row, REASON_UNMATCHING_STATE, action);

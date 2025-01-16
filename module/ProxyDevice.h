@@ -27,5 +27,6 @@ ssize_t store_proxy_device(struct device *dev, struct device_attribute *attr, co
 void reroute_incoming_packet(struct sk_buff *skb, __be16 proxy_port, direction_t packet_direction);
 void reroute_outgoing_packet(struct sk_buff *skb, __be16 proxy_port, __be16 dst_port, direction_t packet_direction);
 void fix_checksums(struct sk_buff *skb);
+ssize_t store_ftp_conn_device(struct device *dev, struct device_attribute *attr, const char *buf, size_t count);
 
 #endif // PROXY_H

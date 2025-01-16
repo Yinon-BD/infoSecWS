@@ -11,19 +11,6 @@ DEVICE_PATH = '/sys/class/fw/proxy/proxy' # The path to the proxy device in the 
 UINT32_SIZE = 4 # The size of an unsigned int in bytes.
 PROXY_ENTRY_SIZE = 4 + 2 + 4 + 2 + 2 # The size of a proxy entry in bytes.
 
-def ip_to_str(ip):
-    try:
-        return socket.inet_ntoa(struct.pack('!I', ip))
-    except Exception:
-        return "Invalid IP"
-    
-def str_to_ip(ip_str):
-    if ip_str == "any":
-        return 0
-    # Convert IP string to integer using socket
-    packed_ip = socket.inet_aton(ip_str.strip())
-    return struct.unpack("!I", packed_ip)[0]
-
 def parse_http_headers(raw_headers):
     headers = {}
     lines = raw_headers.split("\r\n")
@@ -103,15 +90,6 @@ def parse_proxy_entry(buffer):
         "server_port": server_port,
         "proxy_port": proxy_port,
     }
-
-def set_proxy_port(src_ip, dst_ip, src_port, dst_port, proxy_port):
-    try:
-        with open('/sys/class/fw/proxy_set/set_port', 'w') as proxy_set:
-            proxy_set.write("{} {} {} {} {}\n".format(str_to_ip(src_ip), str_to_ip(dst_ip), src_port, dst_port, proxy_port))
-    except FileNotFoundError:
-        print("Error: File /sys/class/fw/proxy_con/connect not found.")
-    except Exception as e:
-        print("An error occurred: {}".format(e))
 
 def send_proxy_request(client_ip, client_port, proxy_port):
     """

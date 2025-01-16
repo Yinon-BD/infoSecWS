@@ -260,3 +260,18 @@ ssize_t store_proxy_device(struct device *dev, struct device_attribute *attr, co
     return -EINVAL;
 }
 
+ssize_t store_ftp_conn_device(struct device *dev, struct device_attribute *attr, const char *buf, size_t count){
+    __be32 buffer_size = sizeof(__be32) * 2 + sizeof(__be16) * 2;
+    __be32 client_ip;
+    __be32 server_ip;
+    __be16 client_port;
+    __be16 server_port;
+
+    extract_connection_from_buffer(buf, &client_ip, &client_port, &server_ip, &server_port);
+    printk(KERN_INFO "New FTP connection info\n");
+    printk(KERN_INFO "cIP: %pI4 cPort: %hu sIP: %pI4 sPort: %hu\n", &client_ip, client_port, &server_ip, server_port);
+    add_connection(client_ip, server_ip, client_port, server_port, TCP_STATE_INIT);
+    add_connection(server_ip, client_ip, server_port, client_port, TCP_STATE_INIT);
+    return count;
+}
+

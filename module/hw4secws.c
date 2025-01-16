@@ -18,12 +18,14 @@ static int rules_device_major = 0;
 static int log_reset_device_major = 0;
 static int conns_device_major = 0;
 static int proxy_device_major = 0;
+static int ftp_conn_major = 0;
 static struct class* sysfs_class = NULL;
 static struct device* rules_device = NULL;
 static struct device* log_device = NULL;
 static struct device* log_reset_device = NULL;
 static struct device* conns_device = NULL;
 static struct device* proxy_device = NULL;
+static struct device* ftp_conn_device = NULL;
 
 // define the log device operations
 static struct file_operations log_fops = {
@@ -49,10 +51,15 @@ static struct file_operations proxy_fops = {
 	.owner = THIS_MODULE
 };
 
+static struct file_operations ftp_conn_fops = {
+	.owner = THIS_MODULE
+};
+
 static DEVICE_ATTR(reset, S_IWUSR | S_IRUGO, NULL, modify_log_device);
 static DEVICE_ATTR(rules, S_IWUSR | S_IRUGO, display_rule_table, modify_rule_table);
 static DEVICE_ATTR(conns, S_IRUGO, display_connection_table, NULL);
 static DEVICE_ATTR(proxy, S_IWUSR | S_IRUGO, display_proxy_table, store_proxy_device);
+static DEVICE_ATTR(ftp, S_IWUSR | S_IRUGO, NULL, store_ftp_conn_device);
 
 static int __init firewall_module(void){
 	// create the netfilter hook
@@ -167,9 +174,31 @@ static int __init firewall_module(void){
 		goto proxy_file_creation_error;
 	}
 
+	// create the ftp connection device
+	ftp_conn_major = register_chrdev(0, "ftp_conn", &ftp_conn_fops);
+	if(ftp_conn_major < 0){
+		printk(KERN_ERR "Failed to create ftp connection char device.\n");
+		goto ftp_conn_device_registration_error;
+	}
+	ftp_conn_device = device_create(sysfs_class, NULL, MKDEV(ftp_conn_major, 0), NULL, "ftp_conn");
+	if(IS_ERR(ftp_conn_device)){
+		printk(KERN_ERR "Failed to create ftp connection sysfs device.\n");
+		goto ftp_conn_device_creation_error;
+	}
+	if(device_create_file(ftp_conn_device, (const struct device_attribute*)&dev_attr_ftp.attr) != 0){
+		printk(KERN_ERR "Failed to create ftp connection file.\n");
+		goto ftp_conn_file_creation_error;
+	}
+
 	return 0;
 
 // to avoid code duplication, we will use uconditional jumps to handle the error cases:
+ftp_conn_file_creation_error:
+	device_destroy(sysfs_class, MKDEV(ftp_conn_major, 0));
+ftp_conn_device_creation_error:
+	unregister_chrdev(ftp_conn_major, "ftp_conn");
+ftp_conn_device_registration_error:
+	device_remove_file(proxy_device, (const struct device_attribute*)&dev_attr_proxy.attr);
 proxy_file_creation_error:
 	device_destroy(sysfs_class, MKDEV(proxy_device_major, 0));
 proxy_device_creation_error:
@@ -212,6 +241,9 @@ static void __exit firewall_module_exit(void){
 	clear_log(); // clear any existing log entries
 	clear_connection_table(); // clear any existing connection entries
 	clear_proxy_connections(); // clear any existing proxy connection entries
+	device_remove_file(ftp_conn_device, (const struct device_attribute*)&dev_attr_ftp.attr);
+	device_destroy(sysfs_class, MKDEV(ftp_conn_major, 0));
+	unregister_chrdev(ftp_conn_major, "ftp_conn");
 	device_remove_file(proxy_device, (const struct device_attribute*)&dev_attr_proxy.attr);
 	device_destroy(sysfs_class, MKDEV(proxy_device_major, 0));
 	unregister_chrdev(proxy_device_major, "proxy");
