@@ -3,7 +3,7 @@
 
 int check_special_cases(__be32 src_ip, __be32 dst_ip, __be16 src_port, __be16 dst_port, __u8 protocol, struct sk_buff *skb){
 	struct tcphdr *tcp_header;
-	if((src_ip & 0xFF000000) == 0x7F000000 && (dst_ip & 0xFF000000) == 0x7F000000){ /*loopback packet*/
+	if((src_ip & htonl(0xFF000000)) == htonl(0x7F000000) && (dst_ip & htonl(0xFF000000)) == htonl(0x7F000000)){ /*loopback packet*/
 		return 1;
 	}
 	if(protocol == PROT_OTHER){ /*non TCP/UDP/ICMP packet*/
@@ -23,8 +23,15 @@ unsigned int localOut(void *priv, struct sk_buff *skb, const struct nf_hook_stat
 	direction_t packet_direction;
 	__be16	packet_src_port;
 	__be16	packet_dst_port;
+	struct iphdr *ip_header;
 
 	if(!skb){
+		return NF_ACCEPT;
+	}
+	ip_header = ip_hdr(skb);
+	__be32 src_ip = ip_header->saddr;
+	__be32 dst_ip = ip_header->saddr;
+	if((src_ip & htonl(0xFF000000)) == htonl(0x7F000000) && (dst_ip & htonl(0xFF000000)) == htonl(0x7F000000)){ /*loopback packet*/
 		return NF_ACCEPT;
 	}
 	printk(KERN_INFO "I'm in the local-out hook!");
@@ -113,7 +120,12 @@ unsigned int filter(void *priv, struct sk_buff *skb, const struct nf_hook_state 
 
 
 	// we need to check if the packet is a proxy packet
-	proxy_conn = find_proxy_connection(packet_src_ip, packet_src_port, packet_dst_ip, packet_dst_port);
+	if(packet_direction == DIRECTION_OUT){
+		proxy_conn = find_proxy_connection(packet_src_ip, packet_src_port, packet_dst_ip, packet_dst_port);
+	}
+	else {
+		proxy_conn = find_proxy_connection(packet_dst_ip, packet_dst_port, packet_src_ip, packet_src_port);
+	}
 	if(proxy_conn != NULL){
 		reroute_incoming_packet(skb, proxy_conn->proxy_port, packet_direction);
 		printk(KERN_INFO "4: Packet accepted\n");
