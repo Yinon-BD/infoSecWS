@@ -183,7 +183,7 @@ def run_server(host=FW_IN_LEG, port=800):
                     proxy_socket.bind((FW_OUT_LEG, 0))
                     _, proxy_port = proxy_socket.getsockname()
                     send_proxy_request(client_address[0], client_address[1], proxy_port)
-                    proxy_socket.connect(server_ip, server_port)
+                    proxy_socket.connect((server_ip, server_port))
                     sockets.append(proxy_socket)
                     sock_data[proxy_socket] = {'buffer': b'', 'headers_parsed': False}
                     connections[proxy_socket] = client_socket

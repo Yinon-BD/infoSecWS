@@ -43,6 +43,7 @@ void add_connection(__be32 src_ip, __be32 dst_ip, __be16 src_port, __be16 dst_po
 
 // Function to remove a connection from the connection table
 void remove_connection(__be32 src_ip, __be32 dst_ip, __be16 src_port, __be16 dst_port){
+    printk(KERN_INFO "wanna remove: %pI4 : %hu , %pI4 : %hu \n", &src_ip, src_port, &dst_ip, dst_port);
     struct connection_entry *entry, *tmp;
     list_for_each_entry_safe(entry, tmp, &connection_table, list){
         if(entry->connection_data.src_ip == src_ip && entry->connection_data.dst_ip == dst_ip
@@ -50,6 +51,7 @@ void remove_connection(__be32 src_ip, __be32 dst_ip, __be16 src_port, __be16 dst
             list_del(&entry->list);
             kfree(entry);
             connection_table_len--;
+            printk(KERN_INFO "Removed from connection table.\n");
             return;
         }
     }

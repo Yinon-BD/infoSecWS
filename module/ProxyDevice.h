@@ -18,7 +18,7 @@ struct proxy_entry {
 
 int create_proxy_connection(__be32 src_ip, __be32 dst_ip, __be16 src_port, __be16 dst_port, direction_t packet_direction);
 void add_proxy_connection(__be32 client_ip, __be16 client_port, __be32 server_ip, __be16 server_port, __be16 proxy_port);
-void remove_proxy_connection(__be32 client_ip, __be16 client_port, __be32 server_ip, __be16 server_port, __be16 proxy_port);
+void remove_proxy_connection(__be32 client_ip, __be16 client_port, __be32 server_ip, __be16 server_port);
 void clear_proxy_connections(void);
 proxy_t *find_proxy_connection(__be32 client_ip, __be16 client_port, __be32 server_ip, __be16 server_port);
 void find_src_ip_and_port(__be32 *src_ip, __be16 *src_port, __be32 dst_ip, __be16 dst_port, __be16 proxy_port, direction_t packet_direction);
