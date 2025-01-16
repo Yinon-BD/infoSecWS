@@ -116,6 +116,8 @@ unsigned int filter(void *priv, struct sk_buff *skb, const struct nf_hook_state 
 	proxy_conn = find_proxy_connection(packet_src_ip, packet_src_port, packet_dst_ip, packet_dst_port);
 	if(proxy_conn != NULL){
 		reroute_incoming_packet(skb, proxy_conn->proxy_port, packet_direction);
+		printk(KERN_INFO "4: Packet accepted\n");
+		return NF_ACCEPT;
 	}
 
 	if(action == NF_ACCEPT){

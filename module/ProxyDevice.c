@@ -122,6 +122,8 @@ void reroute_incoming_packet(struct sk_buff *skb, __be16 proxy_port, direction_t
     __be16 src_port = tcp_header->source;
     __be16 dst_port = tcp_header->dest;
 
+    printk(KERN_INFO "Receiving packet from: IP - %pI4 Port - %hu\n", &src_ip, ntohs(src_port));
+
     if(packet_direction == DIRECTION_OUT){ // client to server, we need to change the destination IP to fw in leg and port based on original dst port
         if(dst_port == htons(80)){
             tcp_header->dest = htons(800);
@@ -161,7 +163,7 @@ void reroute_outgoing_packet(struct sk_buff *skb, __be16 proxy_port, __be16 dst_
     tcp_header->source = htons(src_port);
     fix_checksums(skb);
     printk(KERN_INFO "Spoofed outgoing packet data:\n");
-    printk(KERN_INFO "IP src: %pI4 Port src: %hu \n", &(ip_header->saddr), ntohs(tcp_header->dest));
+    printk(KERN_INFO "IP src: %pI4 Port src: %hu \n", &(ip_header->saddr), ntohs(tcp_header->source));
 }
 
 void fill_proxy_buffer(char *buf, proxy_t *proxy){
