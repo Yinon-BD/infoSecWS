@@ -11,6 +11,7 @@
 #include <linux/tcp.h>
 #include <linux/udp.h>
 #include <linux/time.h>
+#include <net/tcp.h>
 
 
 // the protocols we will work with
@@ -29,17 +30,23 @@ typedef enum {
 	REASON_NO_MATCHING_RULE      = -2,
 	REASON_XMAS_PACKET           = -4,
 	REASON_ILLEGAL_VALUE         = -6,
+	REASON_UNMATCHING_STATE		 = -7,
+	REASON_MATCHING_STATE	 	 = -8,
+	REASON_PROXY_CONN			 = -9,
 } reason_t;
 	
 
 // auxiliary strings, for your convenience
 #define DEVICE_NAME_RULES			"rules"
 #define DEVICE_NAME_LOG				"log"
-#define DEVICE_NAME_CONN_TAB		"conn_tab"
+#define DEVICE_NAME_CONNS			"conns"
+#define DEVICE_NAME_PROXY			"proxy"
 #define CLASS_NAME					"fw"
 #define LOOPBACK_NET_DEVICE_NAME	"lo"
 #define IN_NET_DEVICE_NAME			"enp0s8"
 #define OUT_NET_DEVICE_NAME			"enp0s9"
+#define FW_IN_LEG 167837955
+#define FW_OUT_LEG 167838211
 
 // auxiliary values, for your convenience
 #define IP_VERSION		(4)
