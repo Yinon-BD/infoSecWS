@@ -110,6 +110,8 @@ def send_proxy_request(client_ip, client_port, proxy_port):
         #   - "H"  : Unsigned 16-bit integer (for the ports)
         pack = struct.pack('<HH', client_port, proxy_port) if sys.byteorder == 'little' else struct.pack('>HH', client_port, proxy_port)
         buffer = client_ip_bin + pack
+        # we also want to append to the buffer the number 0 to indicate that the is in the internal network
+        buffer += struct.pack('i', 0)
         
         # Write the buffer to the device
         with open(DEVICE_PATH, "wb") as device:

@@ -14,24 +14,48 @@ int create_proxy_connection(__be32 src_ip, __be32 dst_ip, __be16 src_port, __be1
             add_connection(dst_ip, src_ip, dst_port, src_port, TCP_STATE_PROXY);
             return 1;
         }
+        if(dst_port == 21){
+            add_proxy_connection(src_ip, src_port, dst_ip, dst_port, 0); // the proxy port is not known yet
+            add_connection(src_ip, dst_ip, src_port, dst_port, TCP_STATE_PROXY);
+            add_connection(dst_ip, src_ip, dst_port, src_port, TCP_STATE_PROXY);
+            return 1;
+        }
+        // adding support for SMTP connections
+        if(dst_port == 25){
+            add_proxy_connection(src_ip, src_port, dst_ip, dst_port, 0); // the proxy port is not known yet
+            add_connection(src_ip, dst_ip, src_port, dst_port, TCP_STATE_PROXY);
+            add_connection(dst_ip, src_ip, dst_port, src_port, TCP_STATE_PROXY);
+            return 1;
+        }
         return 0;
+    }
+    // there is a scenario where the server is inside the internal network and the client is outside
+    // in this case, we need to check if the source port is a HTTP port
+    if(packet_direction == DIRECTION_IN){
+        // only http connections need to be proxied
+        if(dst_port == 80){
+            add_proxy_connection(dst_ip, dst_port, src_ip, src_port, 0); // the proxy port is not known yet
+            add_connection(dst_ip, src_ip, dst_port, src_port, TCP_STATE_PROXY);
+            add_connection(src_ip, dst_ip, src_port, dst_port, TCP_STATE_PROXY);
+            return 1;
+        }
     }
     return 0;
 }
 
-void add_proxy_connection(__be32 client_ip, __be16 client_port, __be32 server_ip, __be16 server_port, __be16 proxy_port){
+void add_proxy_connection(__be32 int_ip, __be16 int_port, __be32 ext_ip, __be16 ext_port, __be16 proxy_port){
     proxy_t new_proxy_connection;
-    new_proxy_connection.client_ip = client_ip;
-    new_proxy_connection.client_port = client_port;
-    new_proxy_connection.server_ip = server_ip;
-    new_proxy_connection.server_port = server_port;
+    new_proxy_connection.int_ip = int_ip;
+    new_proxy_connection.int_port = int_port;
+    new_proxy_connection.ext_ip = ext_ip;
+    new_proxy_connection.ext_port = ext_port;
     new_proxy_connection.proxy_port = proxy_port;
 
     // iterate over the list and check if the connection already exists
     struct proxy_entry *entry;
     list_for_each_entry(entry, &proxy_connections, list){
-        if(entry->proxy_data.client_ip == new_proxy_connection.client_ip && entry->proxy_data.client_port == new_proxy_connection.client_port
-        && entry->proxy_data.server_ip == new_proxy_connection.server_ip && entry->proxy_data.server_port == new_proxy_connection.server_port
+        if(entry->proxy_data.int_ip == new_proxy_connection.int_ip && entry->proxy_data.int_port == new_proxy_connection.int_port
+        && entry->proxy_data.ext_ip == new_proxy_connection.ext_ip && entry->proxy_data.ext_port == new_proxy_connection.ext_port
         && entry->proxy_data.proxy_port == new_proxy_connection.proxy_port){
             return;
         }
@@ -43,11 +67,11 @@ void add_proxy_connection(__be32 client_ip, __be16 client_port, __be32 server_ip
     proxy_connections_len++;
 }
 
-void remove_proxy_connection(__be32 client_ip, __be16 client_port, __be32 server_ip, __be16 server_port){
+void remove_proxy_connection(__be32 int_ip, __be16 int_port, __be32 ext_ip, __be16 ext_port){
     struct proxy_entry *entry, *tmp;
     list_for_each_entry_safe(entry, tmp, &proxy_connections, list){
-        if(entry->proxy_data.client_ip == client_ip && entry->proxy_data.client_port == client_port
-        && entry->proxy_data.server_ip == server_ip && entry->proxy_data.server_port == server_port)
+        if(entry->proxy_data.int_ip == int_ip && entry->proxy_data.int_port == int_port
+        && entry->proxy_data.ext_ip == ext_ip && entry->proxy_data.ext_port == ext_port)
         {
             list_del(&entry->list);
             kfree(entry);
@@ -60,18 +84,18 @@ void remove_proxy_connection(__be32 client_ip, __be16 client_port, __be32 server
 void find_src_ip_and_port(__be32 *src_ip, __be16 *src_port, __be32 dst_ip, __be16 dst_port, __be16 proxy_port, direction_t packet_direction){
     struct proxy_entry *entry;
     list_for_each_entry(entry, &proxy_connections, list){
-        if(packet_direction == DIRECTION_OUT){ // source = client, destination = server
-            if(entry->proxy_data.server_ip == dst_ip && entry->proxy_data.server_port == dst_port
+        if(packet_direction == DIRECTION_OUT){ // source = internal, destination = external
+            if(entry->proxy_data.ext_ip == dst_ip && entry->proxy_data.ext_port == dst_port
             && entry->proxy_data.proxy_port == proxy_port){
-                *src_ip = entry->proxy_data.client_ip;
-                *src_port = entry->proxy_data.client_port;
+                *src_ip = entry->proxy_data.int_ip;
+                *src_port = entry->proxy_data.int_port;
                 return;
             }
         }
-        else{ // source = server, destination = client
-            if(entry->proxy_data.client_ip == dst_ip && entry->proxy_data.client_port == dst_port){
-                *src_ip = entry->proxy_data.server_ip;
-                *src_port = entry->proxy_data.server_port;
+        else{ // source = external, destination = internal
+            if(entry->proxy_data.int_ip == dst_ip && entry->proxy_data.int_port == dst_port){
+                *src_ip = entry->proxy_data.ext_ip;
+                *src_port = entry->proxy_data.ext_port;
                 return;
             }
         }
@@ -87,11 +111,11 @@ void clear_proxy_connections(void){
     proxy_connections_len = 0;
 }
 
-proxy_t* find_proxy_connection(__be32 client_ip, __be16 client_port, __be32 server_ip, __be16 server_port){
+proxy_t* find_proxy_connection(__be32 int_ip, __be16 int_port, __be32 ext_ip, __be16 ext_port){
     struct proxy_entry *entry;
     list_for_each_entry(entry, &proxy_connections, list){
-        if(entry->proxy_data.client_ip == client_ip && entry->proxy_data.client_port == client_port
-        && entry->proxy_data.server_ip == server_ip && entry->proxy_data.server_port == server_port){
+        if(entry->proxy_data.int_ip == int_ip && entry->proxy_data.int_port == int_port
+        && entry->proxy_data.ext_ip == ext_ip && entry->proxy_data.ext_port == ext_port){
             return &(entry->proxy_data);
         }
     }
@@ -124,18 +148,28 @@ void reroute_incoming_packet(struct sk_buff *skb, __be16 proxy_port, direction_t
 
     printk(KERN_INFO "Receiving packet from: IP - %pI4 Port - %hu\n", &src_ip, ntohs(src_port));
 
-    if(packet_direction == DIRECTION_OUT){ // client to server, we need to change the destination IP to fw in leg and port based on original dst port
-        if(dst_port == htons(80)){
-            tcp_header->dest = htons(800);
-        }
-        else if(dst_port == htons(21)){
-            tcp_header->dest = htons(210);
+    if(packet_direction == DIRECTION_OUT){ // either client to server or server to client
+        if(src_port == htons(80)){ // it's from the server in the internal network
+            tcp_header->dest = htons(proxy_port);}
+        else { // it's from the client in the internal network
+            if(dst_port == htons(80)){
+                tcp_header->dest = htons(800);
+            }
+            else if(dst_port == htons(21)){
+                tcp_header->dest = htons(210);
+            }
         }
         ip_header->daddr = htonl(FW_IN_LEG);
     }
-    else{ // server to client, we need to change the destination IP to fw out leg and the dst port to the proxy port
-        ip_header->daddr = htonl(FW_OUT_LEG);
-        tcp_header->dest = htons(proxy_port);
+    else{ // either server to client, we need to change the destination IP to fw out leg and the dst port to the proxy port
+            // or client to server, we need to change the dst IP to fw out leg and the dst port to the listening port port
+        if(dst_port == htons(80)){ // it's from the client in the external network
+            tcp_header->dest = htons(800);
+        }
+        else { // it's from a server in the external network
+            ip_header->daddr = htonl(FW_OUT_LEG);
+            tcp_header->dest = htons(proxy_port);
+        }
     }
     fix_checksums(skb);
     printk(KERN_INFO "Spoofed incoming packet data:\n");
@@ -151,7 +185,7 @@ void reroute_outgoing_packet(struct sk_buff *skb, __be16 proxy_port, __be16 dst_
 	__u8 protocol = ip_header->protocol;
 
     if(protocol != PROT_TCP){
-        return 0;
+        return;
     }
 
     printk(KERN_INFO "sending packet to: IP - %pI4 Port - %hu\n", &dst_ip, dst_port);
@@ -167,13 +201,13 @@ void reroute_outgoing_packet(struct sk_buff *skb, __be16 proxy_port, __be16 dst_
 }
 
 void fill_proxy_buffer(char *buf, proxy_t *proxy){
-    memcpy(buf, &(proxy->client_ip), sizeof(__be32));
+    memcpy(buf, &(proxy->int_ip), sizeof(__be32));
     buf += sizeof(__be32);
-    memcpy(buf, &(proxy->client_port), sizeof(__be16));
+    memcpy(buf, &(proxy->int_port), sizeof(__be16));
     buf += sizeof(__be16);
-    memcpy(buf, &(proxy->server_ip), sizeof(__be32));
+    memcpy(buf, &(proxy->ext_ip), sizeof(__be32));
     buf += sizeof(__be32);
-    memcpy(buf, &(proxy->server_port), sizeof(__be16));
+    memcpy(buf, &(proxy->ext_port), sizeof(__be16));
     buf += sizeof(__be16);
     memcpy(buf, &(proxy->proxy_port), sizeof(__be16));
 }
@@ -198,12 +232,14 @@ ssize_t display_proxy_table(struct device *dev, struct device_attribute *attr, c
     return len;
 }
 
-void extract_address_from_buffer(const char *buf, __be32 *client_ip, __be16 *client_port, __be16 *proxy_port){
+void extract_address_from_buffer(const char *buf, __be32 *client_ip, __be16 *client_port, __be16 *proxy_port, int *direction_flag){
     memcpy(client_ip, buf, sizeof(__be32));
     buf += sizeof(__be32);
     memcpy(client_port, buf, sizeof(__be16));
     buf += sizeof(__be16);
     memcpy(proxy_port, buf, sizeof(__be16));
+    buf += sizeof(__be16);
+    memcpy(direction_flag, buf, sizeof(int));
 }
 
 void extract_connection_from_buffer(const char *buf, __be32 *client_ip, __be16 *client_port, __be32 *server_ip, __be16 *server_port){
@@ -216,13 +252,23 @@ void extract_connection_from_buffer(const char *buf, __be32 *client_ip, __be16 *
     memcpy(server_port, buf, sizeof(__be16));
 }
 
-void find_server_address(__be32 client_ip, __be16 client_port, __be32 *server_ip, __be16 *server_port){
+void find_server_address(__be32 client_ip, __be16 client_port, __be32 *server_ip, __be16 *server_port, int direction_flag){
     struct proxy_entry *entry;
     list_for_each_entry(entry, &proxy_connections, list){
-        if(entry->proxy_data.client_ip == client_ip && entry->proxy_data.client_port == client_port){
-            *server_ip = entry->proxy_data.server_ip;
-            *server_port = entry->proxy_data.server_port;
-            return;
+        if(direction_flag == 0) // client in internal network
+        {
+            if(entry->proxy_data.int_ip == client_ip && entry->proxy_data.int_port == client_port){
+                *server_ip = entry->proxy_data.ext_ip;
+                *server_port = entry->proxy_data.ext_port;
+                return;
+            }
+        }
+        else{ // client in external network
+            if(entry->proxy_data.ext_ip == client_ip && entry->proxy_data.ext_port == client_port){
+                *server_ip = entry->proxy_data.int_ip;
+                *server_port = entry->proxy_data.int_port;
+                return;
+            }
         }
     }
 }
@@ -239,10 +285,11 @@ ssize_t store_proxy_device(struct device *dev, struct device_attribute *attr, co
     __be32 client_ip;
     __be16 client_port;
     __be16 proxy_port;
+    int direction_flag = 0;
     struct proxy_entry *entry;
     proxy_t proxy;
 
-    extract_address_from_buffer(buf, &client_ip, &client_port, &proxy_port);
+    extract_address_from_buffer(buf, &client_ip, &client_port, &proxy_port, &direction_flag);
 
     printk(KERN_INFO "New info from proxy server\n");
     printk(KERN_INFO "cIP: %pI4 cPort: %hu proxy: %hu\n", &client_ip, client_port, proxy_port);
@@ -251,20 +298,37 @@ ssize_t store_proxy_device(struct device *dev, struct device_attribute *attr, co
         // we need to find the matching server address and remove the connection
         __be32 server_ip;
         __be16 server_port;
-        find_server_address(client_ip, client_port, &server_ip, &server_port);
-        remove_connection(client_ip, server_ip, client_port, server_port);
-        remove_connection(server_ip, client_ip, server_port, client_port);
-        remove_proxy_connection(client_ip, client_port, server_ip, server_port);
+        find_server_address(client_ip, client_port, &server_ip, &server_port, direction_flag);
+        if(direction_flag == 0) { // client in internal network
+            remove_connection(client_ip, server_ip, client_port, server_port);
+            remove_connection(server_ip, client_ip, server_port, client_port);
+            remove_proxy_connection(client_ip, client_port, server_ip, server_port);
+        }
+        else{ // client in external network
+            remove_connection(server_ip, client_ip, server_port, client_port);
+            remove_connection(client_ip, server_ip, client_port, server_port);
+            remove_proxy_connection(server_ip, server_port, client_ip, client_port);
+        }
         printk(KERN_INFO "proxy connection removed successfuly!\n");
         return count;
     }
 
     list_for_each_entry(entry, &proxy_connections, list){
         proxy = entry->proxy_data;
-        if(proxy.client_ip == client_ip && proxy.client_port == client_port){
-            entry->proxy_data.proxy_port = proxy_port;
-            printk(KERN_INFO "proxy port updated successfuly!\n");
-            return count;
+        if(direction_flag == 0) // client in internal network
+        {
+            if(proxy.int_ip == client_ip && proxy.int_port == client_port){
+                entry->proxy_data.proxy_port = proxy_port;
+                printk(KERN_INFO "proxy port updated successfuly!\n");
+                return count;
+            }
+        }
+        else{ // client in external network
+            if(proxy.ext_ip == client_ip && proxy.ext_port == client_port){
+                entry->proxy_data.proxy_port = proxy_port;
+                printk(KERN_INFO "proxy port updated successfuly!\n");
+                return count;
+            }
         }
     }
     return -EINVAL;
