@@ -158,6 +158,9 @@ void reroute_incoming_packet(struct sk_buff *skb, __be16 proxy_port, direction_t
             else if(dst_port == htons(21)){
                 tcp_header->dest = htons(210);
             }
+            else if(dst_port == htons(25)){
+                tcp_header->dest = htons(250);
+            }
         }
         ip_header->daddr = htonl(FW_IN_LEG);
     }
@@ -167,9 +170,9 @@ void reroute_incoming_packet(struct sk_buff *skb, __be16 proxy_port, direction_t
             tcp_header->dest = htons(800);
         }
         else { // it's from a server in the external network
-            ip_header->daddr = htonl(FW_OUT_LEG);
             tcp_header->dest = htons(proxy_port);
         }
+        ip_header->daddr = htonl(FW_OUT_LEG);
     }
     fix_checksums(skb);
     printk(KERN_INFO "Spoofed incoming packet data:\n");

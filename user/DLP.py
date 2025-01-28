@@ -3,6 +3,7 @@ import os
 import socket
 import struct
 import select
+import sklearn
 
 MAX_CONTENT_LENGTH = 102400
 FW_IN_LEG = '10.1.1.3'  # used for the firewall to communicate with the inside world
@@ -11,41 +12,29 @@ DEVICE_PATH = '/sys/class/fw/proxy/proxy' # The path to the proxy device in the 
 UINT32_SIZE = 4 # The size of an unsigned int in bytes.
 PROXY_ENTRY_SIZE = 4 + 2 + 4 + 2 + 2 # The size of a proxy entry in bytes.
 
-def ip_to_str(ip):
-    try:
-        return socket.inet_ntoa(struct.pack('!I', ip))
-    except Exception:
-        return "Invalid IP"
+def parse_http_headers(raw_headers):
+    headers = {}
+    lines = raw_headers.split("\r\n")
+    for line in lines[1:]:  # Skip the first line (status line)
+        if ": " in line:
+            key, value = line.split(": ", 1)
+            headers[key] = value
+    return headers
+
+def should_block_response(headers):
+    # Check for Content-Length
+    content_length = headers.get('Content-Length')
+    if content_length and int(content_length) > MAX_CONTENT_LENGTH:
+        print("Blocked response: Content-Length exceeds {} bytes.".format(MAX_CONTENT_LENGTH))
+        return True
     
-def str_to_ip(ip_str):
-    if ip_str == "any":
-        return 0
-    # Convert IP string to integer using socket
-    packed_ip = socket.inet_aton(ip_str.strip())
-    return struct.unpack("!I", packed_ip)[0]
+    # Check for Content-Encoding (e.g., gzip)
+    content_encoding = headers.get('Content-Encoding', '').lower()
+    if 'gzip' in content_encoding:
+        print("Blocked response: Content-Encoding is GZIP.")
+        return True
 
-def parse_ftp_command(data):
-    """Parse FTP commands to identify the PORT command."""
-    lines = data.decode().split('\r\n')
-    for line in lines:
-        if line.startswith("PORT"):
-            # Extract IP and port from the PORT command
-            parts = line.split()[1].split(',')
-            ip = '.'.join(parts[:4])  # IP Address
-            port = (int(parts[4]) << 8) + int(parts[5])  # Combine port parts
-            return ip, port
-    return None, None
-
-
-
-def set_ftp_con(src_ip, dst_ip, src_port, dst_port):
-    try:
-        with open('/sys/class/fw/ftp/ftp', 'w') as ftp_set:
-            ftp_set.write("{} {} {} {}\n".format(str_to_ip(src_ip), str_to_ip(dst_ip), src_port, dst_port))
-    except FileNotFoundError:
-        print("Error: File /sys/class/fw/ftp/ftp not found.")
-    except Exception as e:
-        print("An error occurred: {}".format(e))
+    return False
 
 def find_proxy_entry(client_address):
     client_ip, client_port = client_address
@@ -122,7 +111,8 @@ def send_proxy_request(client_ip, client_port, proxy_port):
         #   - "H"  : Unsigned 16-bit integer (for the ports)
         pack = struct.pack('<HH', client_port, proxy_port) if sys.byteorder == 'little' else struct.pack('>HH', client_port, proxy_port)
         buffer = client_ip_bin + pack
-        buffer += struct.pack("i", 0) # flag that indicates the client is in the internal network
+        # we also want to append to the buffer the number 0 to indicate that the is in the internal network
+        buffer += struct.pack('i', 0)
         
         # Write the buffer to the device
         with open(DEVICE_PATH, "wb") as device:
@@ -139,29 +129,33 @@ def send_proxy_request(client_ip, client_port, proxy_port):
         # print(f"An error occurred: {e}")
         print("An error occurred: {}".format(e))
 
-def run_server(host=FW_IN_LEG, port=210):
+def run_servers(host=FW_IN_LEG, HTTP_port=800, SMTP_port=250):
     # Create a TCP socket
-    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    server_socket.bind((host, port))
-    server_socket.listen(20)
+    http_server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    http_server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    http_server_socket.bind((host, HTTP_port))
+    http_server_socket.listen(10)
+    print("HTTP server listening on {}:{}".format(host,HTTP_port))
+    smtp_server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    smtp_server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    smtp_server_socket.bind((host, SMTP_port))
+    smtp_server_socket.listen(10)
     connections = {}
     sock_data = {}
-    print("Server listening on {}:{}".format(host,port))
+    print("SMTP server listening on {}:{}".format(host,SMTP_port))
     
     # List of sockets to monitor for incoming connections
-    sockets = [server_socket]
+    sockets = [http_server_socket, smtp_server_socket]
     
     try:
         while True:
             # Use select to wait for activity on any of the sockets
-
             readable, _, _ = select.select(sockets, [], [], 0.1)
             
             for sock in readable:
-                if sock is server_socket:
+                if sock is http_server_socket or sock is smtp_server_socket:
                     # Accept new connections
-                    client_socket, client_address = server_socket.accept()
+                    client_socket, client_address = sock.accept()
                     print("New connection from {}".format(client_address))
                     sockets.append(client_socket)
                     sock_data[client_socket] = {'buffer': b'', 'headers_parsed': False}
@@ -184,20 +178,40 @@ def run_server(host=FW_IN_LEG, port=210):
                     try:
                         data = sock.recv(1024)
                         if data:
-                            sock_data[sock]["data"] += data
-                            ip, port = parse_ftp_command(sock_data[sock]["data"])
-                            if ip and port:
-                                dst_ip , dst_port = connections[sock].getpeername()
-                                set_ftp_con(dst_ip,ip,20,port)
-                                sock_data[sock]["data"] = b''
-                            connections[sock].send(data)
+                            sock_data[sock]['buffer'] += data
+                            if not sock_data[sock]['headers_parsed']:
+                                header_end = sock_data[sock]['buffer'].find(b'\r\n\r\n')
+                                if header_end != -1:
+                                    raw_headers = sock_data[sock]['buffer'][:header_end].decode()
+                                    headers = parse_http_headers(raw_headers)
+                                    if should_block_response(headers):
+                                        src_ip , src_port = sock.getpeername()
+                                        dst_ip, dst_port = connections[sock].getpeername()
+                                        connections[sock].close()
+                                        sock.close()
+                                        if(src_ip.startswith("10.1.1")): # client is inside
+                                            send_proxy_request(src_ip, src_port, 0)
+                                        else:
+                                            send_proxy_request(dst_ip, dst_port, 0)
+                                        sockets.remove(connections[sock])
+                                        sockets.remove(sock)
+                                        sock_data.pop(sock)
+                                        sock_data.pop(connections[sock])
+                                        connections.pop(connections[sock])
+                                        connections.pop(sock)
+                                        continue
+                                    sock_data[sock]['headers_parsed'] = True
+                                    connections[sock].send(sock_data[sock]['buffer'])
+                                    sock_data[sock]['buffer'] = b''
+                            else:
+                                connections[sock].send(data)
                         else:# remove connection
-                            print("disconnecting ftp client")
+                            print("disconnecting someone")
                             src_ip , src_port = sock.getpeername()
                             dst_ip, dst_port = connections[sock].getpeername()
                             connections[sock].close()
                             sock.close()
-                            if(src_ip.startswith("10.1.1")):
+                            if(src_ip.startswith("10.1.1")): # client is inside
                                 send_proxy_request(src_ip, src_port, 0)
                             else:
                                 send_proxy_request(dst_ip, dst_port, 0)
@@ -208,9 +222,22 @@ def run_server(host=FW_IN_LEG, port=210):
                             connections.pop(connections[sock])
                             connections.pop(sock)
                     except Exception as e:
-                        print("Error with {}: {}".format(sock.getpeername(), e))
-                        sockets.remove(sock)
+                        print("Error {}".format(e))
+                        src_ip , src_port = sock.getpeername()
+                        dst_ip, dst_port = connections[sock].getpeername()
+                        connections[sock].close()
                         sock.close()
+                        if(src_ip.startswith("10.1.1")): # client is inside
+                            send_proxy_request(src_ip, src_port, 0)
+                        else:
+                            send_proxy_request(dst_ip, dst_port, 0)
+                        sockets.remove(connections[sock])
+                        sockets.remove(sock)
+                        sock_data.pop(sock)
+                        sock_data.pop(connections[sock])
+
+                        connections.pop(connections[sock])
+                        connections.pop(sock)
     except KeyboardInterrupt:
         print("\nShutting down server...")
     finally:
@@ -220,4 +247,4 @@ def run_server(host=FW_IN_LEG, port=210):
         print("Server shut down.")
 
 if __name__ == "__main__":
-    run_server()
+    run_servers()
