@@ -3,8 +3,8 @@ import os
 import socket
 import struct
 import select
-import joblib
 import re
+import json
 
 MAX_CONTENT_LENGTH = 102400
 FW_IN_LEG = '10.1.1.3'  # used for the firewall to communicate with the inside world
@@ -13,23 +13,6 @@ DEVICE_PATH = '/sys/class/fw/proxy/proxy' # The path to the proxy device in the 
 UINT32_SIZE = 4 # The size of an unsigned int in bytes.
 PROXY_ENTRY_SIZE = 4 + 2 + 4 + 2 + 2 # The size of a proxy entry in bytes.
 
-model = joblib.load('code_classifier_model.pkl')
-
-def extract_features(data: list) -> list:
-    features = []
-    for snippet in data:
-        lines = snippet.split('\n')
-        num_lines = len(lines)
-        avg_line_length = sum([len(line) for line in lines]) / num_lines
-        num_semicolons = sum([line.count(';') for line in lines])
-        num_special_chars = sum([len(re.findall(r'[{}()\[\]#\\+*/%=]', line)) for line in lines])
-        num_keywords = sum([len(re.findall(r'\b(if|else|for|while|do|break|continue|default|return|int|char|float|void)\b', line)) for line in lines])
-        num_comments = sum([1 for line in lines if line.startswith('//') or '/*' in line or '*/' in line])
-        num_numeric_values = sum([len(re.findall(r'\b\d+\b', line)) for line in lines])
-        num_words = sum([len(re.findall(r'\b\w+\b', line)) for line in lines])
-        ratio_numeric_words = num_numeric_values / num_words if num_words > 0 else 0
-        features.append([num_lines, avg_line_length, num_semicolons, num_special_chars, num_keywords, num_comments, ratio_numeric_words])
-    return features
 
 def parse_http_headers(buffer):
     """Parse HTTP headers and extract Content-Length."""
@@ -43,6 +26,46 @@ def parse_http_headers(buffer):
         if line.lower().startswith("content-length:"):
             content_length = int(line.split(":")[1].strip())
     return content_length, buffer[body_start:]
+
+def should_block_response(payload):
+    """
+    Detects object injection attempts in JSON and raw responses.
+    
+    :param payload: The response body as a string.
+    :return: True if the response should be blocked, False otherwise.
+    """
+    try:
+        # Try to parse as JSON (if applicable)
+        data = json.loads(payload)
+        
+        # Check all values in JSON for suspicious patterns
+        for key, value in data.items():
+            if isinstance(value, str) and detect_php_object_injection(value):
+                print(f"Blocked due to PHP object injection in JSON key: {key}")
+                return True
+    
+    except json.JSONDecodeError:
+        # Not JSON, treat as raw text
+        pass
+    
+    # Check raw response payload for PHP object injection
+    if detect_php_object_injection(payload):
+        print("Blocked due to PHP object injection in raw response")
+        return True
+
+    return False
+
+def detect_php_object_injection(text):
+    """Detects PHP object injection patterns."""
+    php_patterns = [
+        r'O:\d+:"[a-zA-Z0-9_\\\\]+"',  # Serialized PHP object
+        r's:\d+:"[a-zA-Z0-9_\\\\]+"',  # Serialized PHP string
+        r'(\W|\A)unserialize\(',       # Direct unserialize() function
+        r'(\W|\A)base64_decode\(',     # Obfuscated base64 payloads
+        r'\\O:\d+:',                   # Escaped PHP object notation
+    ]
+    return any(re.search(pattern, text) for pattern in php_patterns)
+
 
 def find_proxy_entry(client_address):
     client_ip, client_port = client_address
@@ -135,32 +158,26 @@ def send_proxy_request(client_ip, client_port, proxy_port):
         # print(f"An error occurred: {e}")
         print("An error occurred: {}".format(e))
 
-def run_servers(host=FW_IN_LEG, HTTP_port=800, SMTP_port=250):
+def run_servers(host=FW_OUT_LEG, HTTP_port=800):
     # Create a TCP socket
     http_server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     http_server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     http_server_socket.bind((host, HTTP_port))
     http_server_socket.listen(10)
     print("HTTP server listening on {}:{}".format(host,HTTP_port))
-    smtp_server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    smtp_server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    smtp_server_socket.bind((host, SMTP_port))
-    smtp_server_socket.listen(10)
     connections = {}
     sock_data = {}
-    sock_type = {}
-    print("SMTP server listening on {}:{}".format(host,SMTP_port))
     
     # List of sockets to monitor for incoming connections
-    sockets = [http_server_socket, smtp_server_socket]
+    sockets = [http_server_socket]
     
     try:
         while True:
             # Use select to wait for activity on any of the sockets
-            readable, _, _ = select.select(sockets, [], [], 0.1)
+            readable, _, _ = select.select(sockets, [], [], 0.5)
             
             for sock in readable:
-                if sock is http_server_socket or sock is smtp_server_socket:
+                if sock is http_server_socket:
                     # Accept new connections
                     client_socket, client_address = sock.accept()
                     print("New connection from {}".format(client_address))
@@ -181,13 +198,7 @@ def run_servers(host=FW_IN_LEG, HTTP_port=800, SMTP_port=250):
                     sock_data[proxy_socket] = {'buffer': b'', 'headers_parsed': False}
                     connections[proxy_socket] = client_socket
                     connections[client_socket] = proxy_socket
-                    if sock is http_server_socket:
-                        sock_type[client_socket] = 'http'
-                        sock_type[proxy_socket] = 'http'
-                    else:
-                        sock_type[client_socket] = 'smtp'
-                        sock_type[proxy_socket] = 'smtp'
-                elif sock_type[sock] == 'http':
+                elif sock in sockets:
                     try:
                         data = sock.recv(1024)
                         if data:
@@ -203,9 +214,8 @@ def run_servers(host=FW_IN_LEG, HTTP_port=800, SMTP_port=250):
                             if len(sock_data[sock]['body']) >= sock_data[sock]['expected_length']:
                                 # we got the full payload
                                 payload = sock_data[sock]['body']
-                                features = extract_features([payload.decode()])
-                                prediction = model.predict(features)
-                                if prediction[0] == 1:
+                                verdict = should_block_response(payload if isinstance(payload, str) else payload.decode(errors="ignore"))
+                                if verdict == True:
                                     # the data contains sensitive information
                                     # we should not send it to the server
                                     print("Blocked sensitive data")
@@ -221,8 +231,6 @@ def run_servers(host=FW_IN_LEG, HTTP_port=800, SMTP_port=250):
                                     sockets.remove(sock)
                                     sock_data.pop(sock)
                                     sock_data.pop(connections[sock])
-                                    sock_type.pop(sock)
-                                    sock_type.pop(connections[sock])
                                     connections.pop(connections[sock])
                                     connections.pop(sock)
                                     continue
@@ -244,8 +252,6 @@ def run_servers(host=FW_IN_LEG, HTTP_port=800, SMTP_port=250):
                             sockets.remove(sock)
                             sock_data.pop(sock)
                             sock_data.pop(connections[sock])
-                            sock_type.pop(sock)
-                            sock_type.pop(connections[sock])
                             connections.pop(connections[sock])
                             connections.pop(sock)
                     except Exception as e:
@@ -262,74 +268,9 @@ def run_servers(host=FW_IN_LEG, HTTP_port=800, SMTP_port=250):
                         sockets.remove(sock)
                         sock_data.pop(sock)
                         sock_data.pop(connections[sock])
-                        sock_type.pop(sock)
-                        sock_type.pop(connections[sock])
                         connections.pop(connections[sock])
                         connections.pop(sock)
-                elif sock_type[sock] == 'smtp':
-                    try:
-                        data = sock.recv(1024)
-                        if data:
-                            src_ip , src_port = sock.getpeername()
-                            # check if the source from the internal network
-                            if(src_ip.startswith("10.1.1")):
-                                # check if the data contains sensitive information
-                                features = extract_features([data.decode()])
-                                prediction = model.predict(features)
-                                if prediction[0] == 1:
-                                    # the data contains sensitive information
-                                    # we should not send it to the server
-                                    print("Blocked sensitive data")
-                                    dst_ip, dst_port = connections[sock].getpeername()
-                                    connections[sock].close()
-                                    sock.close()
-                                    send_proxy_request(src_ip, src_port, 0)
-                                    sockets.remove(connections[sock])
-                                    sockets.remove(sock)
-                                    sock_data.pop(sock)
-                                    sock_data.pop(connections[sock])
-                                    sock_type.pop(sock)
-                                    sock_type.pop(connections[sock])
-                                    connections.pop(connections[sock])
-                                    connections.pop(sock)
-                                    continue
-                            connections[sock].send(data)
-                        else:# remove connection
-                            print("disconnecting smtp client")
-                            src_ip , src_port = sock.getpeername()
-                            dst_ip, dst_port = connections[sock].getpeername()
-                            connections[sock].close()
-                            sock.close()
-                            if(src_ip.startswith("10.1.1")):
-                                send_proxy_request(src_ip, src_port, 0)
-                            else:
-                                send_proxy_request(dst_ip, dst_port, 0)
-                            sockets.remove(connections[sock])
-                            sockets.remove(sock)
-                            sock_data.pop(sock)
-                            sock_data.pop(connections[sock])
-                            sock_type.pop(sock)
-                            sock_type.pop(connections[sock])
-                            connections.pop(connections[sock])
-                            connections.pop(sock)
-                    except Exception as e:
-                        print("Error {}".format(e))
-                        src_ip , src_port = sock.getpeername()
-                        dst_ip, dst_port = connections[sock].getpeername()
-                        connections[sock].close()
-                        sock.close()
-                        if(src_ip.startswith("10.1.1")): # client is inside
-                            send_proxy_request(src_ip, src_port, 0)
-                        else:
-                            send_proxy_request(dst_ip, dst_port, 0)
-                        sockets.remove(connections[sock])
-                        sockets.remove(sock)
-                        sock_data.pop(sock)
-                        sock_data.pop(connections[sock])
-                        sock_type.pop(sock)
-                        sock_type.pop(connections[sock])
-                        connections.pop(connections[sock])
-                        connections.pop(sock)
+                
     except KeyboardInterrupt:
         print("\nShutting down server...")
     finally:
