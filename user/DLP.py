@@ -3,7 +3,7 @@ import os
 import socket
 import struct
 import select
-import joblib
+import pickle
 import re
 
 MAX_CONTENT_LENGTH = 102400
@@ -12,8 +12,6 @@ FW_OUT_LEG = '10.1.2.3' # used for the firewall to communicate with the outside 
 DEVICE_PATH = '/sys/class/fw/proxy/proxy' # The path to the proxy device in the firewall.
 UINT32_SIZE = 4 # The size of an unsigned int in bytes.
 PROXY_ENTRY_SIZE = 4 + 2 + 4 + 2 + 2 # The size of a proxy entry in bytes.
-
-model = joblib.load('code_classifier_model.pkl')
 
 def extract_features(data: list) -> list:
     features = []
@@ -149,7 +147,11 @@ def run_servers(host=FW_IN_LEG, HTTP_port=800, SMTP_port=250):
     connections = {}
     sock_data = {}
     sock_type = {}
+    model = None
     print("SMTP server listening on {}:{}".format(host,SMTP_port))
+
+    with open("code_classifier_model.pkl", 'rb') as f:
+    	model = pickle.load(f, encoding='latin1')
     
     # List of sockets to monitor for incoming connections
     sockets = [http_server_socket, smtp_server_socket]
@@ -165,7 +167,7 @@ def run_servers(host=FW_IN_LEG, HTTP_port=800, SMTP_port=250):
                     client_socket, client_address = sock.accept()
                     print("New connection from {}".format(client_address))
                     sockets.append(client_socket)
-                    sock_data[client_socket] = {'buffer': b'', 'headers_parsed': False}
+                    sock_data[client_socket] = {'buffer': b'', 'headers_parsed': False, 'body' : b'', 'expected_length' : 0}
                     entry = find_proxy_entry(client_address)
                     if entry is None:
                         print("No proxy entry found for client")
@@ -178,7 +180,7 @@ def run_servers(host=FW_IN_LEG, HTTP_port=800, SMTP_port=250):
                     send_proxy_request(client_address[0], client_address[1], proxy_port)
                     proxy_socket.connect((server_ip, server_port))
                     sockets.append(proxy_socket)
-                    sock_data[proxy_socket] = {'buffer': b'', 'headers_parsed': False}
+                    sock_data[proxy_socket] = {'buffer': b'', 'headers_parsed': False, 'body': b'', 'expected_length' : 0}
                     connections[proxy_socket] = client_socket
                     connections[client_socket] = proxy_socket
                     if sock is http_server_socket:
@@ -199,7 +201,9 @@ def run_servers(host=FW_IN_LEG, HTTP_port=800, SMTP_port=250):
                                     sock_data[sock]['expected_length'] = content_length
                                     sock_data[sock]['body'] = body
                             else:
+                                print("will it err?")
                                 sock_data[sock]['body'] += data
+                                print("no it didn't")
                             if len(sock_data[sock]['body']) >= sock_data[sock]['expected_length']:
                                 # we got the full payload
                                 payload = sock_data[sock]['body']
