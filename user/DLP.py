@@ -150,7 +150,7 @@ def run_servers(host=FW_IN_LEG, HTTP_port=800, SMTP_port=250):
     model = None
     print("SMTP server listening on {}:{}".format(host,SMTP_port))
 
-    with open("code_classifier_model.pkl", 'rb') as f:
+    with open("tester_from_extractor.sav", 'rb') as f:
     	model = pickle.load(f)
     
     # List of sockets to monitor for incoming connections
