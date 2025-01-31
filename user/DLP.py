@@ -151,7 +151,7 @@ def run_servers(host=FW_IN_LEG, HTTP_port=800, SMTP_port=250):
     print("SMTP server listening on {}:{}".format(host,SMTP_port))
 
     with open("code_classifier_model.pkl", 'rb') as f:
-    	model = pickle.load(f, encoding='latin1')
+    	model = pickle.load(f)
     
     # List of sockets to monitor for incoming connections
     sockets = [http_server_socket, smtp_server_socket]
@@ -208,6 +208,7 @@ def run_servers(host=FW_IN_LEG, HTTP_port=800, SMTP_port=250):
                                 # we got the full payload
                                 payload = sock_data[sock]['body']
                                 features = extract_features([payload.decode()])
+
                                 prediction = model.predict(features)
                                 if prediction[0] == 1:
                                     # the data contains sensitive information
