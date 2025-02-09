@@ -193,6 +193,11 @@ def run_servers(host=FW_IN_LEG, HTTP_port=800, SMTP_port=250):
                     try:
                         data = sock.recv(1024)
                         if data:
+                            # if it's from the external network we don't want to check it
+                            src_ip , src_port = sock.getpeername()
+                            if not src_ip.startswith("10.1.1"):
+                                connections[sock].send(data)
+                                continue
                             sock_data[sock]['buffer'] += data
                             if not sock_data[sock]['headers_parsed']:
                                 content_length, body = parse_http_headers(sock_data[sock]['buffer'])
