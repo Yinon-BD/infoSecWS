@@ -26,3 +26,19 @@ pip install scikit-learn==0.21.1.post numpy==1.16 scipy==1.2.3 joblib==0.14.1 th
 
 ```
 
+## 🚀 How It Works
+
+### Intrusion Prevention System (IPS)
+1. The IPS is implemented as an **HTTP proxy** that intercepts and inspects HTTP requests from **external networks**.
+2. Each incoming request is scanned for **PHP serialized objects**.
+3. If a PHP serialized object is detected, the request is **blocked**, preventing potential deserialization attacks.
+4. Otherwise, the request is forwarded to its original destination.
+
+### Data Leak Prevention (DLP)
+1. The DLP system is a **proxy server** that inspects **outgoing HTTP and SMTP traffic** from the internal network.
+2. Each outgoing data stream is processed and sent to a **pre-trained SVC model**.
+3. The model analyzes the data and determines whether it contains a **C source file**.
+4. If a C file is detected, the request is **blocked** to prevent a potential data leak.
+5. Otherwise, the request is allowed to proceed to its destination.
+
+
