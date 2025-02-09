@@ -41,4 +41,19 @@ pip install scikit-learn==0.21.1.post numpy==1.16 scipy==1.2.3 joblib==0.14.1 th
 4. If a C file is detected, the request is **blocked** to prevent a potential data leak.
 5. Otherwise, the request is allowed to proceed to its destination.
 
+## 📁 Project Structure (new relevant files detailed)
+
+/HW5
+│── /user
+│   ├── IPS.py                            # HTTP Proxy for Intrusion Prevention
+│   ├── DLP.py                            # HTTP & SMTP Proxy for Data Leak Prevention
+│   ├── code_classifier_model.pkl         # Trained SVC model
+│
+|──/module - no changes...
+|
+|──/ftp - no changes...
+|
+|──/http - no changes...
+|
+└── README.md
 
