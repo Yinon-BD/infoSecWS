@@ -9,7 +9,7 @@ int create_proxy_connection(__be32 src_ip, __be32 dst_ip, __be16 src_port, __be1
     if(packet_direction == DIRECTION_OUT){
         // check if the destination port is a HTTP port
         if(dst_port == 80){
-            add_proxy_connection(src_ip, src_port, dst_ip, dst_port, 0); // the proxy port is not known yet
+            add_proxy_connection(src_ip, src_port, dst_ip, dst_port, 0); // the proxy port is not known yet...
             add_connection(src_ip, dst_ip, src_port, dst_port, TCP_STATE_PROXY);
             add_connection(dst_ip, src_ip, dst_port, src_port, TCP_STATE_PROXY);
             return 1;

@@ -7,9 +7,9 @@ import select
 MAX_CONTENT_LENGTH = 102400
 FW_IN_LEG = '10.1.1.3'  # used for the firewall to communicate with the inside world
 FW_OUT_LEG = '10.1.2.3' # used for the firewall to communicate with the outside world
-DEVICE_PATH = '/sys/class/fw/proxy/proxy' # The path to the proxy device in the firewall.
-UINT32_SIZE = 4 # The size of an unsigned int in bytes.
-PROXY_ENTRY_SIZE = 4 + 2 + 4 + 2 + 2 # The size of a proxy entry in bytes.
+DEVICE_PATH = '/sys/class/fw/proxy/proxy' # The path to the proxy device in the firewall
+UINT32_SIZE = 4 # The size of an unsigned int in bytes
+PROXY_ENTRY_SIZE = 4 + 2 + 4 + 2 + 2 # The size of a proxy entry in bytes
 
 def ip_to_str(ip):
     try:
